@@ -34,7 +34,8 @@ public final class FoodRulesChecks {
             require(actual == best,"optimal knapsack"); checks++;
         }
         require(FoodRules.emergencySlot(new int[]{5,4,3,1,-1},new int[]{1,1,1,1,64})==3,"lowest food"); checks++;
-        require(FoodRules.emergencySlot(new int[]{-1,0,5},new int[]{64,1,1})==1,"zero nutrition edible"); checks++;
+        require(FoodRules.emergencySlot(new int[]{-1,0,5},new int[]{64,1,1})==2,"zero nutrition food is skipped, next food wins"); checks++;
+        require(FoodRules.emergencySlot(new int[]{-1,0},new int[]{64,32})==-1,"only zero nutrition food means no relief"); checks++;
         require(FoodRules.emergencySlot(new int[]{-1,1},new int[]{64,0})==-1,"no food"); checks++;
         require(FoodRules.budget(0,100,Long.MAX_VALUE)==8,"huge stock safe"); checks++;
         return checks;

@@ -39,8 +39,10 @@ public final class FoodRules {
     }
     public static int emergencySlot(int[] nutrition, int[] counts) {
         int best = -1;
+        // Only food that actually restores hunger qualifies, so relief always gives at least one point.
+        // Modded food with a nutrition value of 0 is therefore skipped.
         for (int i = 0; i < counts.length; i++)
-            if (counts[i] > 0 && nutrition[i] >= 0 && (best < 0 || nutrition[i] < nutrition[best])) best = i;
+            if (counts[i] > 0 && nutrition[i] > 0 && (best < 0 || nutrition[i] < nutrition[best])) best = i;
         return best;
     }
 }

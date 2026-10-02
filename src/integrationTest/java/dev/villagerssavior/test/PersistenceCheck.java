@@ -32,8 +32,8 @@ public final class PersistenceCheck {
                 SaviorState reloaded = second.computeIfAbsent(SaviorState.TYPE);
                 FoodRulesChecks.require(!reloaded.ready("emergency", player, village, 100),
                     "cooldown survives a disk reload");
-                FoodRulesChecks.require(reloaded.ready("emergency", player, village, 168100),
-                    "reloaded cooldown keeps its 7 day window");
+                FoodRulesChecks.require(reloaded.ready("emergency", player, village, 48100),
+                    "reloaded emergency cooldown keeps its 2 day window");
                 FoodRulesChecks.require(reloaded.ready("emergency", UUID.randomUUID(), village, 100),
                     "reloaded cooldown stays per player");
             }

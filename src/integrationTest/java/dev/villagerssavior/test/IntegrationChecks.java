@@ -72,8 +72,11 @@ public final class IntegrationChecks {
             String village1=ledger.village(List.of("a","b")),village2=ledger.village(List.of("c"));
             check(!village1.equals(village2),"separate villages distinct");
             ledger.cooldown("emergency",a,village1,100);
-            check(!ledger.ready("emergency",a,village1,168099),"week cooldown lower boundary");
-            check(ledger.ready("emergency",a,village1,168100),"week cooldown upper boundary");
+            check(!ledger.ready("emergency",a,village1,48099),"two day cooldown lower boundary");
+            check(ledger.ready("emergency",a,village1,48100),"two day cooldown upper boundary");
+            ledger.cooldown("raid",a,village1,100);
+            check(!ledger.ready("raid",a,village1,168099),"raid cooldown keeps the seven day window");
+            check(ledger.ready("raid",a,village1,168100),"raid cooldown seven day upper boundary");
             check(ledger.ready("emergency",c,village1,100),"different player independent cooldown");
             check(ledger.ready("emergency",a,village2,100),"different village independent cooldown");
             String merged=ledger.village(List.of("a","c"));
@@ -118,7 +121,8 @@ public final class IntegrationChecks {
             var environmental = new IronGolem(EntityTypes.IRON_GOLEM,level); environmental.snapTo(0,4,0); environmental.die(level.damageSources().lava());
             check(value(v,player,GossipType.MINOR_POSITIVE)==20,"environment golem death no penalty");
             var built = new IronGolem(EntityTypes.IRON_GOLEM,level); built.snapTo(0,4,0); built.setPlayerCreated(true); built.die(damage);
-            check(value(v,player,GossipType.MINOR_POSITIVE)==20,"player-created golem death no penalty");
+            check(value(v,player,GossipType.MINOR_POSITIVE)==15,"player-created golem death subtracts five");
+            check(value(v,player,GossipType.MINOR_NEGATIVE)==0,"player-created golem death adds no negative gossip");
             int expectedNegative=0;
             for(int n=1;n<=6;n++) {
                 var killed=new IronGolem(EntityTypes.IRON_GOLEM,level); killed.snapTo(0,4,0); killed.die(damage);
@@ -170,6 +174,18 @@ public final class IntegrationChecks {
             check(value(v,player,GossipType.MINOR_NEGATIVE)==20,"construction never reduces negative gossip");
             check(value(v,freshPlayer,GossipType.MINOR_POSITIVE)==0,"nearby observer receives no construction credit");
             check(CreatorContext.current()==null,"construction context cleaned up");
+            // Regression: carving a pumpkin in place with shears can complete a golem pattern as well.
+            v.getGossips().clear();
+            player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.SHEARS));
+            BlockPos carveBase=new BlockPos(5,4,12); pattern(level,carveBase);
+            BlockPos carvePumpkin=carveBase.above().above();
+            level.setBlock(carvePumpkin,Blocks.PUMPKIN.defaultBlockState(),3);
+            var carveHit=new BlockHitResult(Vec3.atCenterOf(carvePumpkin),Direction.UP,carvePumpkin,false);
+            level.getBlockState(carvePumpkin).useItemOn(player.getMainHandItem(),level,player,InteractionHand.MAIN_HAND,carveHit);
+            check(value(v,player,GossipType.MINOR_POSITIVE)==5,"carving a pumpkin in place credits the carver");
+            check(value(v,freshPlayer,GossipType.MINOR_POSITIVE)==0,"carving path does not credit observers");
+            check(CreatorContext.current()==null,"carving context cleaned up");
+            v.getGossips().clear(); SaviorGossip.add(v,player.getUUID(),GossipType.MINOR_POSITIVE,5);
             for(int i=0;i<6;i++){ var g=new IronGolem(EntityTypes.IRON_GOLEM,level); g.snapTo(10+i,4,5); check(level.addFreshEntity(g),"populate golem cap " + i); }
             var constructed=new IronGolem(EntityTypes.IRON_GOLEM,level); constructed.snapTo(5,4,5); constructed.setPlayerCreated(true);
             SaviorEvents.constructed(constructed,player);

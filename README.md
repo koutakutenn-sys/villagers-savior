@@ -43,14 +43,18 @@ Options → Controls → Key Binds; once you release the key, right-clicking beh
 - **Repairing iron golems**: only counts when the golem **actually regains health**; every villager within
   32 blocks gains +1, capped at 3 points per day for each player + villager pair.
 - **Building iron golems**: the player who places the carved pumpkin / jack o'lantern that creates an iron
-  golem earns a reward, and every villager within 32 blocks gains +5. No reward is given while the villager
-  already has more than 5 iron golems within 64 blocks; this never reduces negative gossip. Spawns that
-  cannot be attributed to a player (dispensers, commands) are not credited to nearby players.
+  golem earns a reward — **carving a normal pumpkin in place with shears** counts as well — and every villager
+  within 32 blocks gains +5. No reward is given while the villager already has more than 5 iron golems within
+  64 blocks; this never reduces negative gossip. Spawns that cannot be attributed to a player (dispensers,
+  commands) are not credited to nearby players.
 - **Killing a village iron golem**: only golems that are **not player-created**, are inside a vanilla village
   when they die, and whose final damage source is a specific player are processed. Every villager within
   32 blocks loses up to 10 `MINOR_POSITIVE` (floor 0), and the n-th effective kill within 7 in-game days adds
   `MINOR_NEGATIVE = 10 + 5 × (n - 1)`; from the 6th kill on, each kill additionally adds `MAJOR_NEGATIVE +1`.
-  Environmental deaths and player-created golems are never punished.
+  Environmental deaths are never punished.
+- **Killing a player-built iron golem**: every villager within 32 blocks loses 5 `MINOR_POSITIVE` (floor 0),
+  and no `MINOR_NEGATIVE` or `MAJOR_NEGATIVE` is added. Vanilla only records whether a golem was player-built,
+  not who built it, so this applies to any player-built golem killed by a player.
 - **Winning a raid**: the actual participants recorded in vanilla's `heroesOfTheVillage` gain
   `MAJOR_POSITIVE +2` for every villager within 64 blocks of the raid center; the same player + village pair
   is rewarded only once every 7 in-game days.
@@ -72,9 +76,10 @@ Options → Controls → Key Binds; once you release the key, right-clicking beh
   that player set as the pickup target. No food is ever conjured out of nothing.
 - **Emergency relief**: when hunger is below 6 and the normal gift cannot provide any food at all, reputation
   and the reserve are ignored and a single food item with the lowest nutrition is given (even if it is the
-  villager's last one). The cooldown is shared per player + village for 168000 ticks (7 in-game days) and is
-  only recorded after the item entity was actually spawned; a villager holding no food fails the relief
-  without starting the cooldown.
+  villager's last one). Only food with **nutrition greater than 0** is considered — modded food with a
+  nutrition value of 0 is skipped, so relief always restores at least one hunger point. The cooldown is shared
+  per player + village for 48000 ticks (2 in-game days) and is only recorded after the item entity was
+  actually spawned; a villager holding no usable food fails the relief without starting the cooldown.
 
 ## Villages and persistence
 

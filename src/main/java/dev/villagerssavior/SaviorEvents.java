@@ -31,7 +31,15 @@ public final class SaviorEvents {
         long now = level.getGameTime();
         var state = SaviorState.get(level);
         if (entity instanceof IronGolem golem) {
-            if (golem.isPlayerCreated() || !level.isVillage(golem.blockPosition())) return;
+            if (golem.isPlayerCreated()) {
+                // Player-built golems skip the village punishment ladder, but killing one still costs
+                // the villagers standing nearby. Vanilla only exposes isPlayerCreated(), so this covers
+                // any player-built golem killed by a player rather than strictly the builder's own.
+                for (var v : villagers(level, golem.position(), 32))
+                    SaviorGossip.subtract(v, id, GossipType.MINOR_POSITIVE, 5);
+                return;
+            }
+            if (!level.isVillage(golem.blockPosition())) return;
             var village = Villages.identify(level, golem.blockPosition());
             if (village.isEmpty()) return;
             for (var v : villagers(level, golem.position(), 32)) {

@@ -12,6 +12,9 @@ import java.util.*;
 /** World-owned state: no global static player history; all timestamps use monotonic game ticks. */
 public final class SaviorState extends SavedData {
     public static final long WEEK = 168000L;
+    /** Emergency relief may repeat after 2 in-game days; raid rewards and kill history keep the 7 day window. */
+    public static final long EMERGENCY = 48000L;
+    static long window(String event) { return "emergency".equals(event) ? EMERGENCY : WEEK; }
     public record Daily(long day, int count) {
         static final Codec<Daily> CODEC = RecordCodecBuilder.create(i -> i.group(
             Codec.LONG.fieldOf("day").forGetter(Daily::day),
@@ -84,7 +87,7 @@ public final class SaviorState extends SavedData {
         for (var entry : cooldowns.entrySet())
             if (entry.getKey().startsWith(prefix) && resolve(entry.getKey().substring(prefix.length())).equals(resolve(village)))
                 last = Math.max(last, entry.getValue());
-        return last == Long.MIN_VALUE || now - last >= WEEK;
+        return last == Long.MIN_VALUE || now - last >= window(event);
     }
     public void cooldown(String event, UUID player, String village, long now) {
         cooldowns.put(event + ":" + player + ":" + resolve(village), now); setDirty();
