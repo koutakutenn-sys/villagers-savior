@@ -1,0 +1,8 @@
+.gradle/
+build/
+run/
+run-test/
+.DS_Store
+AGENTS.md*
+DEVELOPMENT-ENVIRONMENT.md*
+.gradle-user-home/
