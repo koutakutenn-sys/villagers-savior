@@ -1,78 +1,134 @@
-# Villagers' Savior · 村民救星
+# Villagers' Savior
 
-Minecraft Java 版 **26.2** 的 Fabric 模组：保护村民、赢得信任，并在饥饿时向村民请求其真实库存中的食物。
+A Fabric mod for Minecraft Java Edition **26.2**: protect villagers, earn their trust, and ask them for food
+from their real inventory when you are hungry.
 
-完整机制推导见 [Villagers_Savior_mechanics.md](Villagers_Savior_mechanics.md)。
+[中文说明](README.zh-CN.md) · Full mechanics derivation: [Villagers_Savior_mechanics.md](Villagers_Savior_mechanics.md) (Chinese).
 
-## 环境要求
+## Requirements
 
-| 项目 | 版本 |
+| Component | Version |
 | --- | --- |
 | Minecraft | 26.2 |
 | Java | 25 |
-| Fabric Loader | 0.19.5 或更新版本 |
-| Fabric API | 0.161.0+26.2 或兼容的更新版本 |
+| Fabric Loader | 0.19.5 or newer |
+| Fabric API | 0.161.0+26.2 or a compatible newer version |
 
-客户端与服务端都需要安装本模组和 Fabric API；单人游戏只装到客户端即可。
+Both the client and the server need this mod and Fabric API; for singleplayer, the client alone is enough.
 
-## 构建与安装
+## Building and installing
 
 ```sh
 ./gradlew build
 ```
 
-产物为 `build/libs/villagers-savior-1.0.0+mc26.2.jar`，把它复制到目标实例的 `mods/` 目录。
+The artifact is `build/libs/villagers-savior-1.0.0+mc26.2.jar` — copy it into the target instance's `mods/` directory.
 
-> 请使用 `./gradlew build` 生成的 jar：该任务会写入 Fabric Loom 的元数据（映射命名空间、Mixin / Loader 版本等）并完成打包流程，与手工 `javac` + `zip` 拼出的包不等价。
+> Use the jar produced by `./gradlew build`: that task writes the Fabric Loom metadata (mapping namespace,
+> Mixin / Loader versions, and so on) and runs the full packaging pipeline, so it is not equivalent to a jar
+> hand-assembled with `javac` + `zip`.
 
-## 玩法
+## Usage
 
-按住 **V**，用空手右键村民请求食物。请求键可在「选项 → 控制 → 按键绑定」中改绑；松开请求键后，右键恢复原版交互。
+Hold **V** and right-click a villager with an empty hand to request food. You can rebind the request key in
+Options → Controls → Key Binds; once you release the key, right-clicking behaves like vanilla again.
 
-## 机制
+## Mechanics
 
-### 声望
+### Reputation
 
-- **击杀敌对生物**：以生物死亡点为中心 24 格内每位村民按威胁权重获得 `MINOR_POSITIVE`——普通敌对生物 1；苦力怕、末影人、唤魔者、卫道士、猪灵蛮兵 2；劫掠兽、监守者、凋灵、末影龙 3。每个「玩家 + 村民」组合每日上限 5 点，超出部分不累计。
-- **修复铁傀儡**：仅在铁傀儡**实际恢复生命值**时生效；32 格内每位村民 +1，每个「玩家 + 村民」组合每日上限 3 点。
-- **制造铁傀儡**：放置雕刻南瓜 / 南瓜灯生成铁傀儡的玩家获得奖励，32 格内每位村民 +5。村民 64 格内现存铁傀儡超过 5 个时不奖励；该机制**不减少负面 Gossip**。发射器、命令等无法确认制造者的生成不归因给附近玩家。
-- **村庄铁傀儡死亡**：只处理「非玩家制造 + 死亡时位于原版村庄内 + 最终伤害源为具体玩家」的铁傀儡。32 格内每位村民 `MINOR_POSITIVE` 最多 -10（下限 0），并按 7 个游戏日内的第 n 次有效击杀增加 `MINOR_NEGATIVE = 10 + 5 × (n - 1)`；第 6 次起每次额外增加 `MAJOR_NEGATIVE +1`。环境死亡与玩家制造的铁傀儡不处罚。
-- **袭击胜利**：原版 `heroesOfTheVillage` 记录的实际参战者，获得袭击中心 64 格内村民的 `MAJOR_POSITIVE +2`；同一「玩家 + 村庄」组合 7 日内只奖励一次。
-- 所有奖励写入原版真实 Gossip，保留原版声望上限、衰减、传播与交易价格机制；`MINOR_POSITIVE +1` 这类低于原版丢弃阈值的增量会被局部修正，确保按设计实际生效。
+- **Killing hostile mobs**: every villager within 24 blocks of the death position gains `MINOR_POSITIVE` by
+  threat weight — ordinary hostile mobs 1; creepers, endermen, evokers, vindicators and piglin brutes 2;
+  ravagers, wardens, withers and the ender dragon 3. Each player + villager pair is capped at 5 points per day.
+- **Repairing iron golems**: only counts when the golem **actually regains health**; every villager within
+  32 blocks gains +1, capped at 3 points per day for each player + villager pair.
+- **Building iron golems**: the player who places the carved pumpkin / jack o'lantern that creates an iron
+  golem earns a reward, and every villager within 32 blocks gains +5. No reward is given while the villager
+  already has more than 5 iron golems within 64 blocks; this never reduces negative gossip. Spawns that
+  cannot be attributed to a player (dispensers, commands) are not credited to nearby players.
+- **Killing a village iron golem**: only golems that are **not player-created**, are inside a vanilla village
+  when they die, and whose final damage source is a specific player are processed. Every villager within
+  32 blocks loses up to 10 `MINOR_POSITIVE` (floor 0), and the n-th effective kill within 7 in-game days adds
+  `MINOR_NEGATIVE = 10 + 5 × (n - 1)`; from the 6th kill on, each kill additionally adds `MAJOR_NEGATIVE +1`.
+  Environmental deaths and player-created golems are never punished.
+- **Winning a raid**: the actual participants recorded in vanilla's `heroesOfTheVillage` gain
+  `MAJOR_POSITIVE +2` for every villager within 64 blocks of the raid center; the same player + village pair
+  is rewarded only once every 7 in-game days.
+- All rewards are written into real vanilla gossip, preserving vanilla caps, decay, spreading and trade-price
+  behaviour. Increments such as `MINOR_POSITIVE +1` that fall below vanilla's discard threshold are corrected
+  locally so that they actually take effect as designed.
 
-### 请求食物
+### Requesting food
 
-- 服务端校验空手、实体存活、交互距离、视线及交易占用；每位玩家请求间隔至少 20 tick，用于限制重复请求。
-- 有效声望 `R = min(真实声望, 100)`，没有人为下限。村民先保留 `K = 20` 点营养，余粮 `E = max(0, S - 20)`；愿意提供 `B = floor(E × clamp(0.25 + 0.25 × R / 100, 0, 0.5))`；玩家需求 `D = clamp(ceil((20 - H) × (0.25 + 0.003 × clamp(R, 0, 100))), 2, 8)`；最终预算 `A = max(0, min(E, B, D))`。
-- 以有界背包算法在预算内选出营养值最大的物品组合，从村民**真实物品栏**扣除，并面向请求玩家丢出、指定该玩家为拾取目标；不会凭空生成食物。
-- **紧急救济**：饱食度低于 6 且正常赠粮无法提供任何食物时，无视声望与保留库存，赠送营养值最低的 1 个食物（即使是村民最后一个食物）。冷却按「玩家 + 村庄」共享 168000 tick（7 个游戏日），且只在成功生成掉落物后才记录；村民没有任何食物时救济失败且不进入冷却。
+- The server validates the empty hand, that the entity is alive, the interaction distance, line of sight and
+  any ongoing trade; each player may only send a request once every 20 ticks, which bounds duplicate requests.
+- Effective reputation is `R = min(real reputation, 100)` with no artificial lower bound. The villager keeps
+  `K = 20` nutrition points in reserve, so the surplus is `E = max(0, S - 20)`; it is willing to offer
+  `B = floor(E × clamp(0.25 + 0.25 × R / 100, 0, 0.5))`; the player's need is
+  `D = clamp(ceil((20 - H) × (0.25 + 0.003 × clamp(R, 0, 100))), 2, 8)`; and the final budget is
+  `A = max(0, min(E, B, D))`.
+- A bounded-knapsack search picks the item combination with the greatest nutrition that stays within the
+  budget, deducts it from the villager's **real inventory**, and throws it toward the requesting player with
+  that player set as the pickup target. No food is ever conjured out of nothing.
+- **Emergency relief**: when hunger is below 6 and the normal gift cannot provide any food at all, reputation
+  and the reserve are ignored and a single food item with the lowest nutrition is given (even if it is the
+  villager's last one). The cooldown is shared per player + village for 168000 ticks (7 in-game days) and is
+  only recorded after the item entity was actually spawned; a villager holding no food fails the relief
+  without starting the cooldown.
 
-## 村庄与持久化
+## Villages and persistence
 
-- 床、工作站、钟等带原版 `PoiTypeTags.VILLAGE` 标记的 POI，间距不超过 64 格时组成连通区域；查询从交互或事件位置 64 格内最近的 POI 开始。
-- POI 区域保存稳定标识；区域合并时保留较晚的冷却记录，已登记 POI 的移除或区域分裂不会清除已有冷却。超过 4096 个 POI 的异常连通网络不发放依赖村庄标识的奖励。
-- 未识别到村庄的村民仍可正常赠粮，但无法使用按村庄记录的紧急救济。
-- 每日上限按服务器单调 `gameTime / 24000` 计数；睡觉或 `/time set` 改变日夜显示不会绕过限制，服务器停机期间不计时。
-- 历史保存在各维度的世界存档数据 `villagers_savior:history`（`<世界>/data/villagers_savior/history.dat`），包含每日奖励、7 日滚动击杀历史、冷却和村庄标识；服务器重启后继续使用，不同维度相互独立。
+- Beds, workstations, bells and other POIs tagged with vanilla's `PoiTypeTags.VILLAGE` form a connected area
+  when they are no more than 64 blocks apart; lookups start from the nearest POI within 64 blocks of the
+  interaction or event position.
+- POI areas keep a stable identity; when areas merge, the later cooldown records are preserved, and removing
+  a registered POI or splitting an area never clears existing cooldowns. Abnormally large connected networks
+  with more than 4096 POIs grant no rewards that depend on a village identity.
+- Villagers that are not recognised as part of a village can still give normal gifts, but cannot use the
+  village-scoped emergency relief.
+- Daily caps are counted from the server's monotonic `gameTime / 24000`; sleeping or `/time set` cannot bypass
+  them, and time does not pass while the server is down.
+- History is stored in each dimension's world saved data `villagers_savior:history`
+  (`<world>/data/villagers_savior/history.dat`) and contains daily rewards, the 7-day rolling kill history,
+  cooldowns and village identities. It survives server restarts, and dimensions are independent of each other.
 
-## 构建与验证
+## Building and verification
 
 ```sh
-./gradlew build                                            # 编译并打包发行 jar
-./gradlew runIntegrationTest -PacceptMinecraftEula=true    # 需要先同意 Minecraft EULA
+./gradlew build                                            # compile and package the release jar
+./gradlew runIntegrationTest -PacceptMinecraftEula=true    # requires accepting the Minecraft EULA
 ```
 
-- 运行测试服前需同意 [Minecraft EULA](https://www.minecraft.net/eula)。测试服使用 `run-test/` 独立平坦世界，仅绑定本机地址与随机端口，不使用真实存档；测试模组不会打包进发行 jar。
-- 自动化检查覆盖：预算边界与背包最优解（含 2000 组随机暴力对照）、死亡 / 修复 / 制造 hook、球形范围、每日上限、滚动惩罚递增、冷却与序列化、真实库存扣除、紧急救济与冷却共享、网络请求校验、袭击胜利，以及世界存档磁盘往返（`PersistenceCheck`）。
-- 当前验证状态：
-  - `./gradlew build`：通过（Gradle 9.5.1 + Fabric Loom 1.17.21，离线）。
-  - `FoodRulesChecks`：通过，35456 项断言。
-  - `PersistenceCheck`：通过，4 项磁盘往返检查；并用修复前的旧编译产物做过对照，可复现「重载后冷却丢失」，确认该检查有效。
-  - **专用服务器集成测试（`runIntegrationTest`）尚未运行**，需要明确同意 Minecraft EULA 后执行。
-  - 真实客户端按键、显示、交互手感及第三方模组兼容性仍需客户端验证，服务端测试不能替代。
+- You must accept the [Minecraft EULA](https://www.minecraft.net/eula) before running the test server. It uses
+  the dedicated flat world in `run-test/`, binds only to the local address on a random port, and never touches
+  a real save; the test mod is not packaged into the release jar.
+- The automated checks cover: budget boundaries and knapsack optimality (including 2000 randomized
+  brute-force comparisons), the death / repair / construction hooks, spherical ranges, daily caps, escalating
+  rolling penalties, cooldowns and serialization, real inventory deduction, emergency relief and its shared
+  cooldown, network request validation, raid victory, and a world-saved-data disk round trip
+  (`PersistenceCheck`).
+- Current verification status:
+  - `./gradlew build`: passed (Gradle 9.5.1 + Fabric Loom 1.17.21, offline).
+  - `FoodRulesChecks`: passed, 35456 assertions.
+  - `PersistenceCheck`: passed, 4 disk round-trip checks; a control run against the pre-fix compiled classes
+    reproduces the "cooldown lost after reload" failure, confirming the check is effective.
+  - **The dedicated-server integration test (`runIntegrationTest`) has not been run yet** — it requires
+    accepting the Minecraft EULA.
+  - Real client key binds, rendering, interaction feel and third-party mod compatibility still need client
+    testing; server-side tests cannot replace that.
 
-## 已知限制
+## Known limitations
 
-- 击杀奖励只认最终伤害源为具体玩家的击杀：玩家宠物击杀、环境伤害（岩浆、窒息、坠落、仙人掌等）不计入。
-- 已登记 POI 的坐标会随世界存档累积，超大型长期存档中该记录会缓慢增长。
-- 模组使用原版 POI 判定村庄；未使用原版村庄机制的伪造村庄（例如仅有工作站的孤立结构）是否算作一个村庄，取决于原版 `PoiTypeTags.VILLAGE` 连通性判定结果。
+- Kill credit only counts kills whose final damage source is a specific player: kills by player pets and
+  environmental damage (lava, suffocation, falling, cacti, and so on) do not count.
+- Registered POI positions accumulate in the world save, so the record grows slowly in very large,
+  long-running worlds.
+- Villages are identified through vanilla POIs; whether a structure that does not use vanilla village
+  mechanics counts as one village depends on the vanilla `PoiTypeTags.VILLAGE` connectivity result.
+
+## License
+
+Released under **MIT OR Unlicense** — pick either one:
+
+- [Unlicense](LICENSE) (public domain)
+- [MIT](LICENSE-MIT)
