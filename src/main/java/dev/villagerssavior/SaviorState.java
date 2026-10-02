@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 import java.util.*;
@@ -23,8 +24,15 @@ public final class SaviorState extends SavedData {
         Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("pois", Map.of()).forGetter(s -> s.pois),
         Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("aliases", Map.of()).forGetter(s -> s.aliases)
     ).apply(i, SaviorState::new));
+    // The DataFixTypes argument must not be null: vanilla SavedDataStorage.readSavedData passes it straight
+    // into DataFixTypes.update, and a null value throws inside its Exception-guarded read, which makes every
+    // world load silently drop this file and start from empty state (Fabric has no NeoForge-style null patch).
+    // Any non-null constant is safe here: DataFixerUpper returns the payload untouched when the stored
+    // DataVersion is not older than the running version, and on a future upgrade a mismatching rule only
+    // logs and falls back to the original tag.
     public static final SavedDataType<SaviorState> TYPE = new SavedDataType<>(
-        Identifier.fromNamespaceAndPath("villagers_savior", "history"), SaviorState::new, CODEC, null);
+        Identifier.fromNamespaceAndPath("villagers_savior", "history"), SaviorState::new, CODEC,
+        DataFixTypes.SAVED_DATA_MAP_DATA);
     private final Map<String, Daily> daily;
     private final Map<String, List<Long>> kills;
     private final Map<String, Long> cooldowns;

@@ -83,6 +83,8 @@ public final class IntegrationChecks {
             check(!restored.ready("emergency",a,merged,100),"serialized cooldown survives reload");
             check(restored.dailyGrant("repair",a,b,24000,1,3)==0,"serialized daily cap survives reload");
             check(restored.golemKill(a,b,168001)==3,"serialized rolling history survives reload");
+            checks += PersistenceCheck.run(level.registryAccess());
+            results.add("PASS 4 persistence disk round-trip checks");
             GossipContainer gossip=v.getGossips();
             SaviorGossip.add(v,c,GossipType.MAJOR_NEGATIVE,1);
             var gossipJson=GossipContainer.CODEC.encodeStart(JsonOps.INSTANCE,gossip).getOrThrow();
