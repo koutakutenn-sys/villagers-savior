@@ -6,3 +6,10 @@ run-test/
 AGENTS.md*
 DEVELOPMENT-ENVIRONMENT.md*
 .gradle-user-home/
+
+# Audit output: reports live in audit-reports/, raw logs in audit/, test worlds in run-*/
+audit-reports/
+audit/
+run-*/
+AUDIT-*.md
+*-AUDIT-*.md
