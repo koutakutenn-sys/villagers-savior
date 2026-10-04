@@ -1,5 +1,6 @@
 package dev.villagerssavior.profession;
 
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -24,18 +25,20 @@ public final class Repairs {
         return Math.max(1, maxDamage * percent / 100);
     }
     public record Job(int slot, ItemStack target, Item material, int available) {}
-    /** The most damaged eligible stack the player can actually pay to repair, if any. */
-    public static Optional<Job> find(Inventory inventory, Predicate<ItemStack> eligible) {
+    /**
+     * The most damaged eligible stack among {@code targets} that {@code materials} can pay to repair.
+     * The equipment belongs to the player; the repair material comes from the villager's own stock.
+     */
+    public static Optional<Job> find(Inventory targets, Container materials, Predicate<ItemStack> eligible) {
         Job best = null;
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            ItemStack target = inventory.getItem(slot);
+        for (int slot = 0; slot < targets.getContainerSize(); slot++) {
+            ItemStack target = targets.getItem(slot);
             if (target.isEmpty() || !target.isDamageableItem() || target.getDamageValue() <= 0
                 || !eligible.test(target)) continue;
             Item material = null;
             int available = 0;
-            for (int other = 0; other < inventory.getContainerSize(); other++) {
-                if (other == slot) continue;
-                ItemStack candidate = inventory.getItem(other);
+            for (int other = 0; other < materials.getContainerSize(); other++) {
+                ItemStack candidate = materials.getItem(other);
                 if (candidate.isEmpty() || !target.isValidRepairItem(candidate)) continue;
                 if (material == null) material = candidate.getItem();
                 if (candidate.is(material)) available += candidate.getCount();

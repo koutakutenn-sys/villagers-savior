@@ -126,11 +126,8 @@ public final class HudInspectionChecks {
             v.setVillagerData(v.getVillagerData().withProfession(level.registryAccess(), profession)); level.addFreshEntity(v);
             SaviorGossip.add(v, p.getUUID(), GossipType.MAJOR_POSITIVE, 20);
             v.getInventory().setItem(0, new ItemStack(Items.POTATO, 40));
-            List<ItemStack> materials = List.of(new ItemStack(Items.FLINT, 4), new ItemStack(Items.STICK, 4),
-                new ItemStack(Items.FEATHER, 4), new ItemStack(Items.STONE, 8), new ItemStack(Items.COAL),
-                new ItemStack(Items.BEEF, 3), new ItemStack(Items.COD, 3), new ItemStack(Items.GOLD_INGOT),
-                new ItemStack(Items.WOOL.pick(DyeColor.WHITE), 4), new ItemStack(Items.IRON_INGOT, 8), new ItemStack(Items.LEATHER, 8));
-            for (int i = 0; i < materials.size(); i++) p.getInventory().setItem(i, materials.get(i).copy());
+            // Since the free-service model the villager spends its own stock; the player only brings the item.
+            for (var stack : serviceStock(profession.identifier().getPath())) v.getInventory().addItem(stack.copy());
             Item target = switch (profession.identifier().getPath()) {
                 case "weaponsmith" -> Items.IRON_SWORD;
                 case "armorer" -> Items.IRON_CHESTPLATE;
@@ -155,8 +152,8 @@ public final class HudInspectionChecks {
         villager.getGossips().clear(); player.getInventory().clearContent();
         check.accept(has(VillagerInspection.inspect(villager, player), "trust_required"), "HUD shows insufficient reputation");
         SaviorGossip.add(villager, player.getUUID(), GossipType.MAJOR_POSITIVE, 20);
-        check.accept(has(VillagerInspection.inspect(villager, player), "materials"), "HUD shows missing gold");
-        player.getInventory().setItem(0, new ItemStack(Items.GOLD_INGOT)); player.getFoodData().setFoodLevel(10);
+        check.accept(has(VillagerInspection.inspect(villager, player), "materials"), "HUD shows missing alchemy stock");
+        villager.getInventory().setItem(1, new ItemStack(Items.REDSTONE)); player.getFoodData().setFoodLevel(10);
         villager.getInventory().setItem(0, new ItemStack(Items.POTATO, 40));
         check.accept(has(VillagerInspection.inspect(villager, player), "after_food"), "HUD explains gift priority over services");
         villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.FARMER));
@@ -183,5 +180,20 @@ public final class HudInspectionChecks {
         check.accept(has(VillagerInspection.inspect(villager, player), "village_required"), "HUD blocks village-scoped services outside village");
         villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.NITWIT));
         check.accept(has(VillagerInspection.inspect(villager, player), "service_none"), "HUD identifies villagers without profession services");
+    }
+
+    /** The stock each profession needs to be able to offer its (now free) service. */
+    private static List<ItemStack> serviceStock(String profession) {
+        return switch (profession) {
+            case "fisherman" -> List.of(new ItemStack(Items.COD, 3), new ItemStack(Items.COAL));
+            case "butcher" -> List.of(new ItemStack(Items.BEEF, 3), new ItemStack(Items.COAL));
+            case "fletcher" -> List.of(new ItemStack(Items.FLINT, 4), new ItemStack(Items.STICK, 4), new ItemStack(Items.FEATHER, 4));
+            case "shepherd" -> List.of(new ItemStack(Items.WOOL.pick(DyeColor.WHITE), 4));
+            case "mason" -> List.of(new ItemStack(Items.STONE, 8));
+            case "cleric" -> List.of(new ItemStack(Items.REDSTONE));
+            case "toolsmith", "weaponsmith", "armorer" -> List.of(new ItemStack(Items.IRON_INGOT, 8));
+            case "leatherworker" -> List.of(new ItemStack(Items.LEATHER, 8));
+            default -> List.of();
+        };
     }
 }

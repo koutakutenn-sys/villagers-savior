@@ -84,7 +84,7 @@ public final class HudLiveClient {
             }
             if (stage == 4) {
                 if (reply == null || wait < 30) return;
-                check(reply.potatoes() == 40 && reply.bread() == 2 && reply.delivered() == 0, "automatic viewing leaves food and crafting materials untouched");
+                check(reply.potatoes() == 40 && reply.bread() == 2 && reply.delivered() == 0, "automatic viewing leaves the villager's food and materials untouched");
                 control(1); stage = 1; return;
             }
             if (stage == 1) {
@@ -97,7 +97,7 @@ public final class HudLiveClient {
             if (stage == 2) {
                 var current = VillagerHud.current();
                 if (reply == null || wait < 30 || current == null || !HudInspectionChecks.has(current, "cooldown")) return;
-                check(reply.delivered() == 8 && reply.bread() == 0, "actual service crafts eight arrows from real materials");
+                check(reply.delivered() == 8 && reply.bread() == 0, "actual service crafts eight arrows from the villager's own materials");
                 check(HudInspectionChecks.has(current, "cooldown"), "HUD refreshes actual service cooldown");
                 aim = false; mc.player.setYRot(0); stage = 5; wait = 0; return;
             }

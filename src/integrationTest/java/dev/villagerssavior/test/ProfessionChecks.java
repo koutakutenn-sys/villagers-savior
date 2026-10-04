@@ -2,8 +2,10 @@ package dev.villagerssavior.test;
 
 import dev.villagerssavior.debug.ReputationDebug;
 import dev.villagerssavior.debug.ReputationReport;
+import dev.villagerssavior.SaviorState;
 import dev.villagerssavior.profession.Conversions;
 import dev.villagerssavior.profession.LibrarianInteraction;
+import dev.villagerssavior.profession.PopulationSupply;
 import dev.villagerssavior.profession.Rations;
 import dev.villagerssavior.profession.Repairs;
 import java.util.List;
@@ -52,6 +54,29 @@ public final class ProfessionChecks {
         require(LibrarianInteraction.standing(24).endsWith("neutral"), "below threshold stays neutral");
         require(LibrarianInteraction.standing(25).endsWith("trusted"), "threshold is trusted");
         require(LibrarianInteraction.standing(75).endsWith("honored"), "75 is honored");
+        // Population supply: only while the village has spare beds, and never more than one reserve
+        require(PopulationSupply.needsSupply(3, 5), "spare beds mean the village can grow");
+        require(!PopulationSupply.needsSupply(5, 5), "a village at capacity needs no supply");
+        require(!PopulationSupply.needsSupply(6, 5), "a village over capacity needs no supply");
+        require(PopulationSupply.topUp(0) == 12, "an empty stock is topped up to the reserve");
+        require(PopulationSupply.topUp(5) == 7, "a partial stock is only topped up");
+        require(PopulationSupply.topUp(12) == 0, "a full reserve is left alone");
+        require(PopulationSupply.topUp(20) == 0, "the reserve is never exceeded");
+        require(PopulationSupply.pickIndex(new int[]{0, 0, 0, 0}) == -1, "no crop evidence means no supply");
+        require(PopulationSupply.pickIndex(new int[]{3, 9, 2, 1}) == 1, "the most plentiful crop wins");
+        require(PopulationSupply.pickIndex(new int[]{5, 0, 0, 0}) == 0, "a single crop is picked");
+        require(PopulationSupply.pickIndex(new int[]{4, 4, 0, 0}) == 0, "ties keep the earliest crop");
+        // Daily production counters are per villager, per item and per in-game day.
+        var ledger = new SaviorState();
+        var villager = java.util.UUID.randomUUID();
+        require(ledger.dailyVillagerGrant("produce:test", villager, 0, 4, 4) == 4, "first production day grants the cap");
+        require(ledger.dailyVillagerGrant("produce:test", villager, 100, 4, 4) == 0, "same day grants nothing more");
+        require(ledger.dailyVillagerGrant("produce:test", villager, 23999, 4, 4) == 0, "the day boundary is exclusive");
+        require(ledger.dailyVillagerGrant("produce:test", villager, 24000, 4, 4) == 4, "a new day resets production");
+        require(ledger.dailyVillagerGrant("produce:test", java.util.UUID.randomUUID(), 100, 4, 4) == 4,
+            "production counters are per villager");
+        require(ledger.dailyVillagerGrant("produce:other", villager, 100, 4, 4) == 4,
+            "production counters are per produced item");
         // Debug view shows exactly the required fields, all from the server report
         ReputationReport report = new ReputationReport(7, "uuid-1", "farmer", 3, 42, 25, 5, 12, 3, 1);
         List<String> lines = ReputationDebug.lines(report);

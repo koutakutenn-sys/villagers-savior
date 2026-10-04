@@ -47,14 +47,16 @@ public final class ProfessionOffers {
         if (remaining > 0) return List.of(status(service, text("cooldown", VillagerInspection.seconds(remaining))));
         Component result = switch (profession) {
             case "farmer" -> rations(villager, reputation);
-            case "fisherman" -> cooking(player, FISH, reputation);
-            case "butcher" -> cooking(player, MEAT, reputation);
-            case "fletcher" -> conversion(player, Map.of(Items.FLINT, 1, Items.STICK, 1, Items.FEATHER, 1),
+            case "fisherman" -> cooking(villager, FISH, reputation);
+            case "butcher" -> cooking(villager, MEAT, reputation);
+            case "fletcher" -> conversion(villager, Map.of(Items.FLINT, 1, Items.STICK, 1, Items.FEATHER, 1),
                 Items.ARROW, 4, reputation);
-            case "mason" -> conversion(player, Map.of(Items.STONE, 4), Items.STONE_BRICKS, 4, reputation);
-            case "shepherd" -> weaving(player, reputation);
-            case "cleric" -> ServiceItems.count(player.getInventory(), Items.GOLD_INGOT) > 0
-                ? ready(text("blessing"), foodFirst) : text("materials", text("gold_cost"));
+            case "mason" -> conversion(villager, Map.of(Items.STONE, 4), Items.STONE_BRICKS, 4, reputation);
+            case "shepherd" -> weaving(villager, reputation);
+            case "cleric" -> ServiceItems.count(villager.getInventory(), Items.REDSTONE) > 0
+                || ServiceItems.count(villager.getInventory(), Items.GLOWSTONE_DUST) > 0
+                || ServiceItems.count(villager.getInventory(), Items.LAPIS_LAZULI) > 0
+                ? ready(text("blessing"), foodFirst) : text("materials", text("alchemy_cost"));
             default -> repair(villager, player, state, service, reputation, now, switch (profession) {
                 case "toolsmith" -> RepairService.TOOLS;
                 case "weaponsmith" -> RepairService.WEAPONS;
@@ -81,8 +83,8 @@ public final class ProfessionOffers {
         if (Arrays.stream(selection).noneMatch(n -> n > 0)) return text("ration_stock");
         return ready(VillagerInspection.items(inventory, selection), false);
     }
-    private static Component conversion(ServerPlayer player, Map<Item, Integer> cost, Item result, int each, int reputation) {
-        int batches = Conversions.affordable(player.getInventory(), cost, Conversions.capFor(reputation));
+    private static Component conversion(Villager villager, Map<Item, Integer> cost, Item result, int each, int reputation) {
+        int batches = Conversions.affordable(villager.getInventory(), cost, Conversions.capFor(reputation));
         var inputs = Component.empty();
         cost.entrySet().stream().sorted(Comparator.comparing(e -> e.getKey().getDescriptionId())).forEach(e -> {
             if (!inputs.getSiblings().isEmpty()) inputs.append(Component.literal("、"));
@@ -91,15 +93,15 @@ public final class ProfessionOffers {
         if (batches <= 0) return text("materials", inputs);
         return ready(text("conversion", inputs, batches, new ItemStack(result).getHoverName(), batches * each), false);
     }
-    private static Component cooking(ServerPlayer player, Map<Item, Item> recipes, int reputation) {
-        int raw = recipes.keySet().stream().mapToInt(item -> ServiceItems.count(player.getInventory(), item)).sum();
-        int coal = ServiceItems.count(player.getInventory(), Items.COAL);
+    private static Component cooking(Villager villager, Map<Item, Item> recipes, int reputation) {
+        int raw = recipes.keySet().stream().mapToInt(item -> ServiceItems.count(villager.getInventory(), item)).sum();
+        int coal = ServiceItems.count(villager.getInventory(), Items.COAL);
         int amount = Math.min(Math.min(raw, Conversions.capFor(reputation)), coal * Cooking.ITEMS_PER_COAL);
         if (amount <= 0) return text("materials", text(recipes == FISH ? "fish_cost" : "meat_cost"));
         var result = Component.empty();
         int left = amount;
-        for (int slot = 0; slot < player.getInventory().getContainerSize() && left > 0; slot++) {
-            var stack = player.getInventory().getItem(slot);
+        for (int slot = 0; slot < villager.getInventory().getContainerSize() && left > 0; slot++) {
+            var stack = villager.getInventory().getItem(slot);
             Item cooked = recipes.get(stack.getItem());
             if (cooked == null) continue;
             int count = Math.min(left, stack.getCount());
@@ -109,12 +111,12 @@ public final class ProfessionOffers {
         }
         return ready(text("cooking", result, (amount + Cooking.ITEMS_PER_COAL - 1) / Cooking.ITEMS_PER_COAL), false);
     }
-    private static Component weaving(ServerPlayer player, int reputation) {
+    private static Component weaving(Villager villager, int reputation) {
         int[] left = {Conversions.capFor(reputation)};
         var result = Component.empty();
         ColorCollection.zipApply(Items.WOOL, Items.CARPET, (wool, carpet) -> {
             if (wool == null || carpet == null || left[0] <= 0) return;
-            int batches = Math.min(ServiceItems.count(player.getInventory(), wool) / 2, left[0]);
+            int batches = Math.min(ServiceItems.count(villager.getInventory(), wool) / 2, left[0]);
             if (batches <= 0) return;
             if (!result.getSiblings().isEmpty()) result.append(Component.literal("、"));
             result.append(text("item_count", new ItemStack(carpet).getHoverName(), batches * 3)); left[0] -= batches;
@@ -127,7 +129,7 @@ public final class ProfessionOffers {
         int quota = state.dailyRemaining(service + "_quota", player.getUUID(), villager.getUUID(), now,
             Repairs.dailyUnits(reputation));
         if (quota == 0) return text("quota");
-        var found = Repairs.find(player.getInventory(), eligible);
+        var found = Repairs.find(player.getInventory(), villager.getInventory(), eligible);
         if (found.isEmpty()) return text("repair_materials");
         var job = found.get();
         int perUnit = Repairs.amountPerUnit(job.target().getMaxDamage(), reputation);

@@ -67,6 +67,22 @@ public final class SaviorState extends SavedData {
         }
         return grant;
     }
+    /**
+     * Daily counter for work that has no player behind it (profession production), keyed by villager only.
+     * The {@code v:} prefix keeps these keys disjoint from the player + villager keys above.
+     */
+    public int dailyVillagerGrant(String event, UUID villager, long now, int amount, int cap) {
+        String key = "v:" + event + ":" + villager;
+        long day = Math.floorDiv(now, 24000);
+        Daily old = daily.get(key);
+        int count = old != null && old.day == day ? old.count : 0;
+        int grant = Math.max(0, Math.min(amount, cap - count));
+        if (grant > 0) {
+            daily.entrySet().removeIf(e -> e.getValue().day < day - 1);
+            daily.put(key, new Daily(day, count + grant)); setDirty();
+        }
+        return grant;
+    }
     public int golemKill(UUID player, UUID villager, long now) {
         String key = player + ":" + villager;
         List<Long> history = kills.computeIfAbsent(key, k -> new ArrayList<>());

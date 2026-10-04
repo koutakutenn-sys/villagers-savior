@@ -11,7 +11,7 @@ import net.minecraft.world.item.Items;
 import java.util.Map;
 import java.util.Optional;
 
-/** Cleric service: a short, low-intensity blessing paid for with the player's real gold. */
+/** Cleric service: a short, low-intensity blessing paid for out of the cleric's own alchemy stock. */
 public final class ClericInteraction implements ProfessionInteraction {
     private static final Map<Item, Integer> COST = Map.of(Items.GOLD_INGOT, 1);
     private static final int DURATION = 200;
@@ -23,7 +23,12 @@ public final class ClericInteraction implements ProfessionInteraction {
         var state = SaviorState.get(level);
         if (!ProfessionInteractions.ready(state, "service_cleric", player, village.get(), now,
             ProfessionInteractions.SERVICE_WINDOW * 2)) return Optional.empty();
-        if (!ServiceItems.consume(player.getInventory(), Items.GOLD_INGOT, 1)) return Optional.empty();
+        Item spent = null;
+        for (Item candidate : new Item[] {Items.REDSTONE, Items.GLOWSTONE_DUST, Items.LAPIS_LAZULI}) {
+            if (ServiceItems.count(villager.getInventory(), candidate) > 0) { spent = candidate; break; }
+        }
+        if (spent == null) return Optional.empty();
+        if (!ServiceItems.consume(villager.getInventory(), spent, 1)) return Optional.empty();
         player.addEffect(new MobEffectInstance(MobEffects.REGENERATION, DURATION, 0));
         ProfessionInteractions.book(state, "service_cleric", player, village.get(), now);
         return Optional.of("service_cleric");

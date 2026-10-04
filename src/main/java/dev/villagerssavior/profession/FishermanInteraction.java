@@ -22,7 +22,7 @@ public final class FishermanInteraction implements ProfessionInteraction {
         var state = SaviorState.get(level);
         if (!ProfessionInteractions.ready(state, "service_fisherman", player, village.get(), now,
             ProfessionInteractions.SERVICE_WINDOW)) return Optional.empty();
-        int cooked = Cooking.cook(player, RECIPES, Conversions.capFor(reputation));
+        int cooked = Cooking.cook(villager, player, RECIPES, Conversions.capFor(reputation));
         if (cooked <= 0) return Optional.empty();
         ProfessionInteractions.book(state, "service_fisherman", player, village.get(), now);
         return Optional.of("service_fisherman");

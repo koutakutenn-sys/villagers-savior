@@ -10,7 +10,7 @@ import net.minecraft.world.item.Items;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-/** Shared repair service: real materials from the player, a bounded daily quota, vanilla anvil amounts. */
+/** Shared repair service: the villager spends its own repair stock, bounded by a daily quota. */
 final class RepairService {
     static final Predicate<ItemStack> TOOLS =
         stack -> stack.is(ItemTags.PICKAXES) || stack.is(ItemTags.SHOVELS) || stack.is(ItemTags.HOES);
@@ -31,7 +31,7 @@ final class RepairService {
         var state = SaviorState.get(level);
         if (!ProfessionInteractions.ready(state, event, player, village.get(), now, ProfessionInteractions.SERVICE_WINDOW))
             return Optional.empty();
-        var found = Repairs.find(player.getInventory(), eligible);
+        var found = Repairs.find(player.getInventory(), villager.getInventory(), eligible);
         if (found.isEmpty()) return Optional.empty();
         var job = found.get();
         ItemStack target = job.target();
@@ -41,7 +41,7 @@ final class RepairService {
         int allowed = state.dailyGrant(event + "_quota", player.getUUID(), villager.getUUID(), now, wanted,
             Repairs.dailyUnits(reputation));
         if (allowed <= 0) return Optional.empty();
-        if (!ServiceItems.consume(player.getInventory(), job.material(), allowed)) return Optional.empty();
+        if (!ServiceItems.consume(villager.getInventory(), job.material(), allowed)) return Optional.empty();
         target.setDamageValue(Math.max(0, target.getDamageValue() - allowed * perUnit));
         ProfessionInteractions.book(state, event, player, village.get(), now);
         return Optional.of("service_repair");

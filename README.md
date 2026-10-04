@@ -150,11 +150,11 @@ automatic villager panel are documented in [Villagers_Savior_professions.md](Vil
   - Native client automation passed 15 checks with the minimal setup and 16 checks with the installed
     mod combination using the release jar. Chinese HUD screenshots were inspected. One earlier direct
     shutdown hit a JVM native crash; the normal disconnect-and-exit rerun exited cleanly.
-    See [the HUD audit](HUD-AUDIT-2026-10-04.md) for evidence and limits; long-term play feel is not covered.
+    See [the HUD audit](audit-reports/HUD-AUDIT-2026-10-04.md) for evidence and limits; long-term play feel is not covered.
   - The 1.0.3 release jar plus the instance's other mods passed 51 native client checks, covering scan
     aggregates, individual professions/reputations, paging, permissions, cache expiry and HUD regression.
     Client and server exited with code 0. A separate rerun hit a JVM compiler-thread native crash with an
-    unconfirmed root cause. See [the scan audit](SCAN-AUDIT-2026-10-04.md) for evidence and limits.
+    unconfirmed root cause. See [the scan audit](audit-reports/SCAN-AUDIT-2026-10-04.md) for evidence and limits.
 
 ## Known limitations
 

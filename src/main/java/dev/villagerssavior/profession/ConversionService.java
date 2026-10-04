@@ -10,8 +10,8 @@ import java.util.Optional;
 final class ConversionService {
     private ConversionService() {}
     /**
-     * Runs one real, vanilla-conserving conversion: the player pays the full vanilla cost for every batch
-     * and receives the vanilla result. Nothing is ever produced without the matching cost.
+     * Runs one real, vanilla-conserving conversion: the villager pays the full vanilla cost for every batch
+     * out of its own stock and the player receives the vanilla result free of charge.
      */
     static Optional<String> serve(ServerLevel level, Villager villager, ServerPlayer player, long now,
                                   String event, java.util.Map<net.minecraft.world.item.Item, Integer> costPerBatch,
@@ -23,7 +23,7 @@ final class ConversionService {
         var state = SaviorState.get(level);
         if (!ProfessionInteractions.ready(state, event, player, village.get(), now, ProfessionInteractions.SERVICE_WINDOW))
             return Optional.empty();
-        var inventory = player.getInventory();
+        var inventory = villager.getInventory();
         int batches = Conversions.affordable(inventory, costPerBatch, Conversions.capFor(reputation));
         if (batches <= 0) return Optional.empty();
         if (!Conversions.pay(inventory, costPerBatch, batches)) return Optional.empty();

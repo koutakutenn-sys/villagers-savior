@@ -9,6 +9,8 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.ai.gossip.GossipType;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import java.util.*;
@@ -19,6 +21,20 @@ public final class SaviorEvents {
         return level.getEntitiesOfClass(Villager.class, new AABB(center, center).inflate(radius),
             v -> v.isAlive() && v.position().distanceToSqr(center) <= (double) radius * radius);
     }
+    /**
+     * Drops a villager's whole real hidden inventory and clears it. Vanilla villagers do not drop their
+     * inventory at all, but the mod's profession stock lives in there, so death must hand it back to the world.
+     * No distinction is made between items picked up through vanilla behaviour and items this mod produced.
+     */
+    public static void dropVillagerInventory(Villager villager) {
+        if (!(villager.level() instanceof ServerLevel level)) return;
+        var inventory = villager.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty()) Block.popResource(level, villager.blockPosition(), stack);
+        }
+        inventory.clearContent();
+    }
     public static int threat(Entity entity) {
         var type = entity.getType();
         if (type == EntityTypes.RAVAGER || type == EntityTypes.WARDEN || type == EntityTypes.WITHER || type == EntityTypes.ENDER_DRAGON) return 3;
@@ -26,6 +42,8 @@ public final class SaviorEvents {
         return 1;
     }
     public static void death(LivingEntity entity, DamageSource source) {
+        // Real hidden inventory drops for every villager death, regardless of what (or who) killed it.
+        if (entity instanceof Villager villager) dropVillagerInventory(villager);
         if (!(entity.level() instanceof ServerLevel level) || !(source.getEntity() instanceof ServerPlayer player)) return;
         UUID id = player.getUUID();
         long now = level.getGameTime();

@@ -37,9 +37,10 @@ public final class HudLiveServer {
             level.addFreshEntity(second);
             level.getPoiManager().add(new BlockPos(0, 4, 0), level.registryAccess().lookupOrThrow(Registries.POINT_OF_INTEREST_TYPE).getOrThrow(PoiTypes.HOME));
             player.getInventory().clearContent(); player.getFoodData().setFoodLevel(10);
-            player.getInventory().setItem(9, new ItemStack(Items.FLINT, 2));
-            player.getInventory().setItem(10, new ItemStack(Items.STICK, 2));
-            player.getInventory().setItem(11, new ItemStack(Items.FEATHER, 2));
+            // Since the free-service model the fletcher pays out of its own stock; the player brings nothing.
+            first.getInventory().setItem(1, new ItemStack(Items.FLINT, 2));
+            first.getInventory().setItem(2, new ItemStack(Items.STICK, 2));
+            first.getInventory().setItem(3, new ItemStack(Items.FEATHER, 2));
             player.teleportTo(0.5, 4, 2.5);
         }
         if (code >= 20 && Boolean.getBoolean("savior.audit.scan")) { ScanLiveServer.control(player, code); return; }
@@ -50,7 +51,7 @@ public final class HudLiveServer {
         if (code == 2) ProfessionInteractions.serve(first, player);
         int entity = code == 3 ? second.getId() : first.getId();
         var reply = new AuditNet.Reply(code, entity, first.getInventory().countItem(Items.POTATO),
-            player.getInventory().countItem(Items.FLINT), player.getInventory().countItem(Items.ARROW), false);
+            first.getInventory().countItem(Items.FLINT), player.getInventory().countItem(Items.ARROW), false);
         System.out.println("HUD_LIVE_SERVER " + reply);
         ServerPlayNetworking.send(player, reply);
     }

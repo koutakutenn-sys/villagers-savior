@@ -22,14 +22,14 @@ public final class ShepherdInteraction implements ProfessionInteraction {
         var state = SaviorState.get(level);
         if (!ProfessionInteractions.ready(state, "service_shepherd", player, village.get(), now,
             ProfessionInteractions.SERVICE_WINDOW)) return Optional.empty();
-        int batches = weave(player, Conversions.capFor(reputation));
+        int batches = weave(villager, player, Conversions.capFor(reputation));
         if (batches <= 0) return Optional.empty();
         ProfessionInteractions.book(state, "service_shepherd", player, village.get(), now);
         return Optional.of("service_shepherd");
     }
-    /** Weaves each colour the player really owns, never more than the cap, always at the vanilla ratio. */
-    private static int weave(ServerPlayer player, int cap) {
-        var inventory = player.getInventory();
+    /** Weaves each colour the villager really owns, never more than the cap, always at the vanilla ratio. */
+    private static int weave(Villager villager, ServerPlayer player, int cap) {
+        var inventory = villager.getInventory();
         int[] batches = {0};
         ColorCollection.zipApply(Items.WOOL, Items.CARPET, (wool, carpet) -> {
             if (wool == null || carpet == null || batches[0] >= cap) return;
