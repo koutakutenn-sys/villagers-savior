@@ -1,4 +1,5 @@
-package dev.villagerssavior.test;
+package dev.villagerssavior.test.mixin;
+import dev.villagerssavior.test.IntegrationChecks;
 import net.minecraft.world.entity.raid.Raid;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;

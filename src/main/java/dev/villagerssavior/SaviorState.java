@@ -14,7 +14,13 @@ public final class SaviorState extends SavedData {
     public static final long WEEK = 168000L;
     /** Emergency relief may repeat after 2 in-game days; raid rewards and kill history keep the 7 day window. */
     public static final long EMERGENCY = 48000L;
-    static long window(String event) { return "emergency".equals(event) ? EMERGENCY : WEEK; }
+    /** Farmer travel rations are limited to one handout per player and village per in-game day. */
+    public static final long RATION = 24000L;
+    static long window(String event) {
+        if ("emergency".equals(event)) return EMERGENCY;
+        if ("ration".equals(event)) return RATION;
+        return WEEK;
+    }
     public record Daily(long day, int count) {
         static final Codec<Daily> CODEC = RecordCodecBuilder.create(i -> i.group(
             Codec.LONG.fieldOf("day").forGetter(Daily::day),
@@ -80,16 +86,38 @@ public final class SaviorState extends SavedData {
         for (String pos : positions) if (!id.equals(pois.put(pos, id))) setDirty();
         return id;
     }
+    /** Ready when the event's own window has elapsed since the last record for this player and village. */
     public boolean ready(String event, UUID player, String village, long now) {
+        return ready(event, player, village, now, window(event));
+    }
+    /** Ready when {@code window} ticks have elapsed since the last record for this player and village. */
+    public boolean ready(String event, UUID player, String village, long now, long window) {
         String suffix = ":" + player + ":";
         String prefix = event + suffix;
         long last = Long.MIN_VALUE;
         for (var entry : cooldowns.entrySet())
             if (entry.getKey().startsWith(prefix) && resolve(entry.getKey().substring(prefix.length())).equals(resolve(village)))
                 last = Math.max(last, entry.getValue());
-        return last == Long.MIN_VALUE || now - last >= window(event);
+        return last == Long.MIN_VALUE || now - last >= window;
     }
     public void cooldown(String event, UUID player, String village, long now) {
         cooldowns.put(event + ":" + player + ":" + resolve(village), now); setDirty();
+    }
+    /** Read-only allowance; unlike dailyGrant this never books a repair or cleans history. */
+    public int dailyRemaining(String event, UUID player, UUID villager, long now, int cap) {
+        Daily old = daily.get(event + ":" + player + ":" + villager);
+        int count = old != null && old.day == Math.floorDiv(now, 24000) ? old.count : 0;
+        return Math.max(0, cap - count);
+    }
+    /** Read-only cooldown across every known ID in a connected POI region, including pending merges. */
+    public long remainingAt(String event, UUID player, Collection<String> positions, long now, long window) {
+        Set<String> ids = new HashSet<>();
+        for (String pos : positions) if (pois.containsKey(pos)) ids.add(resolve(pois.get(pos)));
+        String prefix = event + ":" + player + ":";
+        long last = Long.MIN_VALUE;
+        for (var entry : cooldowns.entrySet())
+            if (entry.getKey().startsWith(prefix) && ids.contains(resolve(entry.getKey().substring(prefix.length()))))
+                last = Math.max(last, entry.getValue());
+        return last == Long.MIN_VALUE ? 0 : Math.max(0, window - (now - last));
     }
 }

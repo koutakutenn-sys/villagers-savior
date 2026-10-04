@@ -1,1 +1,1 @@
-{"required":true,"package":"dev.villagerssavior.test","compatibilityLevel":"JAVA_25","mixins":["TestServerMixin","RaidAccess"],"injectors":{"defaultRequire":1}}
+{"required":true,"package":"dev.villagerssavior.test.mixin","compatibilityLevel":"JAVA_25","mixins":["TestServerMixin","RaidAccess"],"injectors":{"defaultRequire":1}}

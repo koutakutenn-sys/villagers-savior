@@ -22,7 +22,7 @@ Both the client and the server need this mod and Fabric API; for singleplayer, t
 ./gradlew build
 ```
 
-The artifact is `build/libs/villagers-savior-1.0.0+mc26.2.jar` — copy it into the target instance's `mods/` directory.
+The artifact is `build/libs/villagers-savior-1.0.3+mc26.2.jar` — copy it into the target instance's `mods/` directory.
 
 > Use the jar produced by `./gradlew build`: that task writes the Fabric Loom metadata (mapping namespace,
 > Mixin / Loader versions, and so on) and runs the full packaging pipeline, so it is not equivalent to a jar
@@ -33,7 +33,35 @@ The artifact is `build/libs/villagers-savior-1.0.0+mc26.2.jar` — copy it into 
 Hold **V** and right-click a villager with an empty hand to request food. You can rebind the request key in
 Options → Controls → Key Binds; once you release the key, right-clicking behaves like vanilla again.
 
+Look at a villager within normal interaction range to automatically show their reputation, food offers
+and profession service in a HUD panel. It lists quantities, material requirements and cooldowns; looking
+away hides it. This replaces the G debug key. Viewing the panel does not consume items or activate services.
+
+### Reputation scans (debug)
+
+Requires cheats or operator level 2. Reports each villager's real reputation toward the calling player.
+
+```mcfunction
+/villagerssavior debug nearby       # current dimension, spherical radius 64
+/villagerssavior debug nearby 128   # radius 1–256
+/villagerssavior debug village      # the connected POI village around the player
+/villagerssavior debug list 2       # page 2 of the last result
+```
+
+The summary includes count, sum, mean, median, minimum, maximum and relationship distribution.
+Details list UUID, coordinates, profession and reputation, sorted from lowest reputation with ten villagers
+per page. Results expire after 30 seconds of game time; run another scan to refresh.
+
+Village membership uses the connected POI definition below and the nearest village POI within 64 blocks
+to avoid counting neighboring villages twice. Scans include loaded villagers and saved villagers in unloaded
+entity chunks, including passengers. Saved rows use the last saved profession and Gossip snapshot and are
+clearly labeled. Reads are asynchronous and do not load or generate world chunks. Oversized scans (more
+than 4096 candidate chunks) and storage failures are rejected.
+
 ## Mechanics
+
+Profession services (farmer travel rations, cooking, fletching, repairs, information) and the reputation
+automatic villager panel are documented in [Villagers_Savior_professions.md](Villagers_Savior_professions.md) (Chinese).
 
 ### Reputation
 
@@ -117,10 +145,16 @@ Options → Controls → Key Binds; once you release the key, right-clicking beh
   - `FoodRulesChecks`: passed, 35456 assertions.
   - `PersistenceCheck`: passed, 4 disk round-trip checks; a control run against the pre-fix compiled classes
     reproduces the "cooldown lost after reload" failure, confirming the check is effective.
-  - **The dedicated-server integration test (`runIntegrationTest`) has not been run yet** — it requires
-    accepting the Minecraft EULA.
-  - Real client key binds, rendering, interaction feel and third-party mod compatibility still need client
-    testing; server-side tests cannot replace that.
+  - The full dedicated-server suite passed via the isolated `hudServer` audit task: 39401 assertions,
+    including 79 HUD inspection checks, 48 scan checks and all vanilla professions.
+  - Native client automation passed 15 checks with the minimal setup and 16 checks with the installed
+    mod combination using the release jar. Chinese HUD screenshots were inspected. One earlier direct
+    shutdown hit a JVM native crash; the normal disconnect-and-exit rerun exited cleanly.
+    See [the HUD audit](HUD-AUDIT-2026-10-04.md) for evidence and limits; long-term play feel is not covered.
+  - The 1.0.3 release jar plus the instance's other mods passed 51 native client checks, covering scan
+    aggregates, individual professions/reputations, paging, permissions, cache expiry and HUD regression.
+    Client and server exited with code 0. A separate rerun hit a JVM compiler-thread native crash with an
+    unconfirmed root cause. See [the scan audit](SCAN-AUDIT-2026-10-04.md) for evidence and limits.
 
 ## Known limitations
 

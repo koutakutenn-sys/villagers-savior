@@ -5,6 +5,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
@@ -22,7 +23,11 @@ public final class FoodGifts {
         long now = level.getGameTime();
         // One second per player: bound replay/spam without imposing an extra in-game day limit.
         if (!access.savior$acceptRequest(now)) return;
-        player.sendSystemMessage(Component.translatable("message.villagers_savior." + give(v, player, request.hand())), true);
+        String key = give(v, player, request.hand());
+        // The villager always tries to feed a hungry player first; profession services are the extra system.
+        if ("full".equals(key) || "none".equals(key))
+            key = dev.villagerssavior.profession.ProfessionInteractions.serve(v, player).orElse(key);
+        player.sendSystemMessage(Component.translatable("message.villagers_savior." + key), true);
     }
     public static String give(Villager villager, ServerPlayer player, InteractionHand hand) {
         var level = (ServerLevel) villager.level();
@@ -51,8 +56,23 @@ public final class FoodGifts {
                 if (slot >= 0) { selection[slot] = 1; emergencyVillage = village.get(); }
             }
         }
+        if (!dropSelection(level, villager, player, inventory, selection)) return "none";
+        if (emergencyVillage != null) {
+            state.cooldown("emergency", player.getUUID(), emergencyVillage, level.getGameTime());
+            return "emergency";
+        }
+        return "gift";
+    }
+    public interface RequestThrottle { boolean savior$acceptRequest(long now); }
+
+    /**
+     * Spawns the selected stacks toward the player and only then removes them from the villager, so a denied
+     * entity spawn never destroys inventory. Shared by the generic gift and the farmer's travel rations.
+     */
+    public static boolean dropSelection(ServerLevel level, Villager villager, ServerPlayer player,
+                                        SimpleContainer inventory, int[] selection) {
         boolean dropped = false;
-        for (int slot = 0; slot < size; slot++) {
+        for (int slot = 0; slot < selection.length; slot++) {
             if (selection[slot] == 0) continue;
             // Spawn a copy first: denied entity spawns never destroy inventory or start cooldowns.
             ItemStack gift = inventory.getItem(slot).copyWithCount(selection[slot]);
@@ -62,12 +82,6 @@ public final class FoodGifts {
             item.setDeltaMovement(motion);
             if (level.addFreshEntity(item)) { inventory.removeItem(slot, selection[slot]); dropped = true; }
         }
-        if (!dropped) return "none";
-        if (emergencyVillage != null) {
-            state.cooldown("emergency", player.getUUID(), emergencyVillage, level.getGameTime());
-            return "emergency";
-        }
-        return "gift";
+        return dropped;
     }
-    public interface RequestThrottle { boolean savior$acceptRequest(long now); }
 }

@@ -1,1 +1,21 @@
-{"schemaVersion":1,"id":"villagers_savior_test","version":"1.0.0","name":"Villagers Savior Integration Tests","environment":"server","mixins":["villagers_savior_test.mixins.json"],"depends":{"villagers_savior":"*"}}
+{
+  "schemaVersion": 1,
+  "id": "villagers_savior_test",
+  "version": "1.0.0",
+  "name": "Villagers Savior Integration Tests",
+  "environment": "*",
+  "mixins": [
+    "villagers_savior_test.mixins.json"
+  ],
+  "depends": {
+    "villagers_savior": "*"
+  },
+  "entrypoints": {
+    "main": [
+      "dev.villagerssavior.test.AuditMod"
+    ],
+    "client": [
+      "dev.villagerssavior.test.ClientAudit"
+    ]
+  }
+}

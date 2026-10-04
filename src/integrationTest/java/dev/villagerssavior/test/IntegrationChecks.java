@@ -1,6 +1,7 @@
 package dev.villagerssavior.test;
 
 import dev.villagerssavior.*;
+import dev.villagerssavior.test.mixin.RaidAccess;
 import com.mojang.authlib.GameProfile;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.core.*;
@@ -31,14 +32,16 @@ public final class IntegrationChecks {
     private static final List<String> results = new ArrayList<>();
     private static void check(boolean value, String name) {
         checks++;
-        if (!value) throw new AssertionError(name);
-        results.add("PASS " + name);
+        results.add((value ? "PASS " : "FAIL ") + name);
     }
     public static void run(MinecraftServer server) {
+        if (!System.getProperty("audit.restart","none").equals("none")) { RestartAudit.run(server); return; }
         boolean pass = false;
         try {
             checks += FoodRulesChecks.run();
             results.add("PASS 35456 numerical food-rule checks");
+            checks += ProfessionChecks.run();
+            results.add("PASS profession rule checks");
             var level = server.overworld();
             level.getChunk(0,0); level.getChunk(1,0); level.getChunk(2,0);
             var player = player(server, level);
@@ -203,7 +206,13 @@ public final class IntegrationChecks {
             check(value(v,player,GossipType.MAJOR_POSITIVE)==2,"celebration tick cannot repeat award");
             SaviorEvents.raidWon(level,poiPos,Set.of(player.getUUID()));
             check(value(v,player,GossipType.MAJOR_POSITIVE)==2,"repeat raid within week cannot award");
-            pass=true;
+            AdditionalChecks.run(server, IntegrationChecks::check);
+            var profession = ProfessionIntegrationChecks.run(server, level);
+            results.addAll(profession.lines());
+            checks += profession.checks();
+            HudInspectionChecks.run(server, IntegrationChecks::check);
+            ReputationScanChecks.run(server, IntegrationChecks::check);
+            pass=results.stream().noneMatch(r -> r.startsWith("FAIL"));
         } catch (Throwable failure) { results.add("FAIL " + failure); failure.printStackTrace(); }
         try {
             String report=(pass?"PASS":"FAIL")+": "+checks+" checks\n"+String.join("\n",results)+"\n";

@@ -10,6 +10,10 @@ import java.util.*;
 public final class Villages {
     private Villages() {}
     public static Optional<String> identify(ServerLevel level, BlockPos origin) {
+        return positions(level, origin).map(positions -> SaviorState.get(level).village(positions));
+    }
+    /** Same connected POIs as identify, without assigning IDs or merging saved history. */
+    public static Optional<Collection<String>> positions(ServerLevel level, BlockPos origin) {
         var manager = level.getPoiManager();
         var first = manager.findClosest(t -> t.is(PoiTypeTags.VILLAGE), origin, 64, PoiManager.Occupancy.ANY);
         if (first.isEmpty()) return Optional.empty();
@@ -23,6 +27,6 @@ public final class Villages {
             // Fail closed for unusually huge networks rather than let partial IDs bypass cooldowns.
             if (visited.size() > 4096) return Optional.empty();
         }
-        return Optional.of(SaviorState.get(level).village(visited.stream().map(p -> Long.toString(p.asLong())).toList()));
+        return Optional.of(visited.stream().map(p -> Long.toString(p.asLong())).toList());
     }
 }
