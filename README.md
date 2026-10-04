@@ -37,6 +37,15 @@ Look at a villager within normal interaction range to automatically show their r
 and profession service in a HUD panel. It lists quantities, material requirements and cooldowns; looking
 away hides it. This replaces the G debug key. Viewing the panel does not consume items or activate services.
 
+Nitwits collect any ground item that fits their hidden inventory, respecting pickup delays and designated
+recipients. They do not produce items or take them from containers. **V + empty-hand right-click** returns
+their entire inventory as drops reserved for you, regardless of reputation or hunger, with no cooldown.
+The HUD previews all items they can return.
+
+Clerics offer free Regeneration I at reputation ≥ 0 (200 ticks, 12000-tick village cooldown).
+Negative reputation allows emergency treatment at health ≤ 6, or ≤ 2 when reputation ≤ -100
+(100 ticks, 24000-tick cooldown). Each cast spends one reagent from the cleric's bounded work-restored stock.
+
 ### Reputation scans (debug)
 
 Requires cheats or operator level 2. Reports each villager's real reputation toward the calling player.
@@ -63,8 +72,20 @@ than 4096 candidate chunks) and storage failures are rejected.
 Profession services (farmer travel rations, cooking, fletching, repairs, information) and the reputation
 automatic villager panel are documented in [Villagers_Savior_professions.md](Villagers_Savior_professions.md) (Chinese).
 
+All 13 standard professions create bounded amounts of their own resources after a successful workstation
+restock, adding them directly to their hidden inventory without consuming external ingredients. Production
+has per-restock and per-item daily limits, inventory targets and hard caps. Farmers also need spare village
+beds and evidence of a crop type; unemployed villagers and nitwits do not produce resources. Librarians and
+cartographers produce paper/books as listed in the profession tables, while their request services only
+provide information. Gifts transfer existing stock, and processing services consume the villager's ingredients.
+
 ### Reputation
 
+- **Killing villagers**: ordinary villagers retain vanilla penalties. Directly killing a nitwit additionally
+  gives every living, currently loaded resident of its connected village `MAJOR_NEGATIVE +1` and
+  `MINOR_NEGATIVE +10–20` (one inclusive random roll per death). Witnessing is not required for this extra
+  penalty; other villages and unloaded residents are unaffected. Player-owned projectiles count, pets and
+  environmental deaths do not. If no village is recognized, only vanilla penalties apply.
 - **Killing hostile mobs**: every villager within 24 blocks of the death position gains `MINOR_POSITIVE` by
   threat weight — ordinary hostile mobs 1; creepers, endermen, evokers, vindicators and piglin brutes 2;
   ravagers, wardens, withers and the ender dragon 3. Each player + villager pair is capped at 5 points per day.
@@ -93,7 +114,7 @@ automatic villager panel are documented in [Villagers_Savior_professions.md](Vil
 ### Requesting food
 
 - The server validates the empty hand, that the entity is alive, the interaction distance, line of sight and
-  any ongoing trade; each player may only send a request once every 20 ticks, which bounds duplicate requests.
+  any ongoing trade; ordinary food requests are limited to once every 20 ticks. Nitwit inventory handover bypasses this throttle.
 - Effective reputation is `R = min(real reputation, 100)` with no artificial lower bound. The villager keeps
   `K = 20` nutrition points in reserve, so the surplus is `E = max(0, S - 20)`; it is willing to offer
   `B = floor(E × clamp(0.25 + 0.25 × R / 100, 0, 0.5))`; the player's need is
@@ -101,7 +122,8 @@ automatic villager panel are documented in [Villagers_Savior_professions.md](Vil
   `A = max(0, min(E, B, D))`.
 - A bounded-knapsack search picks the item combination with the greatest nutrition that stays within the
   budget, deducts it from the villager's **real inventory**, and throws it toward the requesting player with
-  that player set as the pickup target. No food is ever conjured out of nothing.
+  that player set as the pickup target. The handout itself transfers existing stock; that stock may have
+  come from vanilla pickups/harvesting or this mod's bounded profession production.
 - **Emergency relief**: when hunger is below 6 and the normal gift cannot provide any food at all, reputation
   and the reserve are ignored and a single food item with the lowest nutrition is given (even if it is the
   villager's last one). Only food with **nutrition greater than 0** is considered — modded food with a
@@ -140,21 +162,33 @@ automatic villager panel are documented in [Villagers_Savior_professions.md](Vil
   rolling penalties, cooldowns and serialization, real inventory deduction, emergency relief and its shared
   cooldown, network request validation, raid victory, and a world-saved-data disk round trip
   (`PersistenceCheck`).
-- Current verification status:
+- Verification records:
+  - Latest local release-jar check (2026-10-05, repair target priority): **39970 server assertions passed**,
+    SHA-256 `26b1468ef0e47c7402dde0cc8b5a30ad74a55017688e9f21af141ffd34d0cccb`.
+    Repairs and HUD previews now select the eligible equipment with the highest damage ratio.
+    The previous jar failed 27 regression assertions; all passed with the fixed jar. Server logic and HUD
+    payloads were tested; no GUI client or third-party combination was rerun.
+    See [the repair priority audit](audit-reports/REPAIR-PRIORITY-AUDIT-2026-10-05.md).
+  - Earlier Nitwit and cleric release-jar check (2026-10-05): **39925 server assertions passed**,
+    SHA-256 `9b6378d5b5c1e0de47eb9549ec36ac96dacd91f23440dfe6f6cb1ddb673e1659`.
+    This run covered server logic and HUD payloads; no GUI client or third-party combination was rerun.
+    See [the final audit](audit-reports/CLERIC-AND-NITWIT-AUDIT-2026-10-05.md).
   - `./gradlew build`: passed (Gradle 9.5.1 + Fabric Loom 1.17.21, offline).
   - `FoodRulesChecks`: passed, 35456 assertions.
   - `PersistenceCheck`: passed, 4 disk round-trip checks; a control run against the pre-fix compiled classes
     reproduces the "cooldown lost after reload" failure, confirming the check is effective.
-  - The full dedicated-server suite passed via the isolated `hudServer` audit task: 39401 assertions,
+  - The earlier scan-build dedicated-server suite passed via the isolated `hudServer` audit task: 39401 assertions,
     including 79 HUD inspection checks, 48 scan checks and all vanilla professions.
   - Native client automation passed 15 checks with the minimal setup and 16 checks with the installed
     mod combination using the release jar. Chinese HUD screenshots were inspected. One earlier direct
     shutdown hit a JVM native crash; the normal disconnect-and-exit rerun exited cleanly.
     See [the HUD audit](audit-reports/HUD-AUDIT-2026-10-04.md) for evidence and limits; long-term play feel is not covered.
-  - The 1.0.3 release jar plus the instance's other mods passed 51 native client checks, covering scan
+  - The earlier 1.0.3 scan release jar plus the instance's other mods passed 51 native client checks, covering scan
     aggregates, individual professions/reputations, paging, permissions, cache expiry and HUD regression.
     Client and server exited with code 0. A separate rerun hit a JVM compiler-thread native crash with an
     unconfirmed root cause. See [the scan audit](audit-reports/SCAN-AUDIT-2026-10-04.md) for evidence and limits.
+
+Audit reports and scripts linked above are local files ignored by Git; a fresh checkout may not contain them.
 
 ## Known limitations
 

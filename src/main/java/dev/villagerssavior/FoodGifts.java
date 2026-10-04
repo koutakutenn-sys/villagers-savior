@@ -19,6 +19,10 @@ public final class FoodGifts {
         if (!(level.getEntity(request.entityId()) instanceof Villager v) || !v.isAlive() || v.isSleeping()
             || !player.isWithinEntityInteractionRange(v, 0) || !player.hasLineOfSight(v)) return;
         if (v.getTradingPlayer() != null && v.getTradingPlayer() != player) return;
+        if (NitwitInventory.isNitwit(v)) {
+            player.sendSystemMessage(Component.translatable("message.villagers_savior." + NitwitInventory.giveAll(v, player)), true);
+            return;
+        }
         var access = (RequestThrottle) player;
         long now = level.getGameTime();
         // One second per player: bound replay/spam without imposing an extra in-game day limit.

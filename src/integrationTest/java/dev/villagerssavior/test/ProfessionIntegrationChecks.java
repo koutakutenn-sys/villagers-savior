@@ -11,6 +11,7 @@ import dev.villagerssavior.profession.ProfessionInteractions;
 import dev.villagerssavior.profession.ProfessionProduction;
 import dev.villagerssavior.profession.ProfessionResources;
 import dev.villagerssavior.profession.Rations;
+import dev.villagerssavior.profession.Repairs;
 import dev.villagerssavior.profession.ServiceItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.RegistryAccess;
@@ -24,6 +25,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.ai.gossip.GossipType;
@@ -32,6 +35,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import java.util.*;
@@ -73,6 +77,7 @@ public final class ProfessionIntegrationChecks {
         wheatProcessingTests();
         conversionTests();
         repairTests();
+        repairPriorityTests();
         informationTests();
         populationSupplyTests();
         productionTests();
@@ -251,6 +256,71 @@ public final class ProfessionIntegrationChecks {
         var brokeSmith = villager(VillagerProfession.TOOLSMITH, villagePos.getX() + 20, villagePos.getZ());
         trusted(brokeSmith, noMaterial, 25);
         check(ProfessionInteractions.serve(brokeSmith, noMaterial).isEmpty(), "repairs need the villager's own materials");
+    }
+    private void repairPriorityTests() {
+        record RepairCase(ResourceKey<VillagerProfession> profession, Item equipment, Item material) {}
+        var cases = List.of(
+            new RepairCase(VillagerProfession.TOOLSMITH, Items.IRON_PICKAXE, Items.IRON_INGOT),
+            new RepairCase(VillagerProfession.WEAPONSMITH, Items.IRON_SWORD, Items.IRON_INGOT),
+            new RepairCase(VillagerProfession.ARMORER, Items.IRON_CHESTPLATE, Items.IRON_INGOT),
+            new RepairCase(VillagerProfession.LEATHERWORKER, Items.LEATHER_CHESTPLATE, Items.LEATHER));
+        for (var test : cases) {
+            for (boolean worseFirst : List.of(false, true)) {
+                var smith = villager(test.profession(), villagePos.getX() + 10, villagePos.getZ());
+                var p = player();
+                p.getInventory().clearContent();
+                var slight = new ItemStack(test.equipment());
+                var severe = new ItemStack(test.equipment());
+                int slightDamage = slight.getMaxDamage() / 5;
+                int severeDamage = severe.getMaxDamage() * 4 / 5;
+                slight.setDamageValue(slightDamage);
+                severe.setDamageValue(severeDamage);
+                p.getInventory().setItem(worseFirst ? 1 : 0, slight);
+                p.getInventory().setItem(worseFirst ? 0 : 1, severe);
+                smith.getInventory().setItem(0, new ItemStack(test.material()));
+                trusted(smith, p, 25);
+                String label = test.profession().identifier().getPath() + " worseFirst=" + worseFirst;
+                check(ProfessionInteractions.serve(smith, p).orElse("").equals("service_repair"),
+                    "repair priority service succeeds: " + label);
+                check(severe.getDamageValue() == severeDamage - severe.getMaxDamage() / 4,
+                    "repair priority chooses the 80-percent damaged item: " + label);
+                check(slight.getDamageValue() == slightDamage,
+                    "repair priority leaves the 20-percent damaged item untouched: " + label);
+                check(count(smith.getInventory(), test.material()) == 0 && count(p, test.material()) == 0,
+                    "repair priority spends exactly the villager's one material: " + label);
+            }
+        }
+
+        var p = player();
+        p.getInventory().clearContent();
+        var materials = new SimpleContainer(4);
+        materials.setItem(0, new ItemStack(Items.IRON_INGOT, 2));
+        materials.setItem(1, new ItemStack(Items.DIAMOND, 2));
+        var diamond = new ItemStack(Items.DIAMOND_PICKAXE); diamond.setDamageValue(diamond.getMaxDamage() / 5);
+        var iron = new ItemStack(Items.IRON_PICKAXE); iron.setDamageValue(iron.getMaxDamage() * 3 / 5);
+        var sword = new ItemStack(Items.DIAMOND_SWORD); sword.setDamageValue(sword.getMaxDamage() * 9 / 10);
+        p.getInventory().setItem(0, diamond);
+        p.getInventory().setItem(1, iron);
+        p.getInventory().setItem(2, sword);
+        check(diamond.getDamageValue() > iron.getDamageValue(), "repair ratio fixture has reversed absolute damage order");
+        check(Repairs.find(p.getInventory(), materials, stack -> stack.is(ItemTags.PICKAXES))
+                .map(job -> job.target() == iron).orElse(false),
+            "repair priority uses damage ratio and ignores a more damaged item of the wrong category");
+        check(iron.getDamageValue() == iron.getMaxDamage() * 3 / 5
+                && diamond.getDamageValue() == diamond.getMaxDamage() / 5
+                && count(materials, Items.IRON_INGOT) == 2 && count(materials, Items.DIAMOND) == 2,
+            "repair target lookup does not change durability or materials");
+        var tied = iron.copy();
+        p.getInventory().setItem(3, tied);
+        check(Repairs.find(p.getInventory(), materials, stack -> stack.is(ItemTags.PICKAXES))
+                .map(job -> job.slot() == 1).orElse(false),
+            "equal repair damage ratios keep the first eligible inventory slot");
+        var unavailable = new ItemStack(Items.NETHERITE_PICKAXE);
+        unavailable.setDamageValue(unavailable.getMaxDamage() * 9 / 10);
+        p.getInventory().setItem(4, unavailable);
+        check(Repairs.find(p.getInventory(), materials, stack -> stack.is(ItemTags.PICKAXES))
+                .map(job -> job.target() == iron).orElse(false),
+            "repair priority skips a more damaged item without a matching villager material");
     }
     // ---------------------------------------------------------------- information
     private void informationTests() {

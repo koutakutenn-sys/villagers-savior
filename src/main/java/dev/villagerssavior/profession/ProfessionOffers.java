@@ -33,6 +33,7 @@ public final class ProfessionOffers {
                     "toolsmith", "weaponsmith", "armorer", "leatherworker").contains(profession))
             return List.of(text("service_none"));
         if (profession.equals("farmer")) service = "ration";
+        if (profession.equals("cleric")) return List.of(status(service, cleric(villager, player, positions, foodFirst)));
         int reputation = ProfessionInteractions.reputation(villager, player);
         if (reputation < ProfessionInteractions.MIN_REPUTATION)
             return List.of(status(service, text("trust_required", ProfessionInteractions.MIN_REPUTATION)));
@@ -42,7 +43,6 @@ public final class ProfessionOffers {
         var state = SaviorState.get(player.level());
         long now = player.level().getGameTime();
         long window = profession.equals("farmer") ? Rations.COOLDOWN : ProfessionInteractions.SERVICE_WINDOW;
-        if (profession.equals("cleric")) window *= 2;
         long remaining = state.remainingAt(service, player.getUUID(), positions.get(), now, window);
         if (remaining > 0) return List.of(status(service, text("cooldown", VillagerInspection.seconds(remaining))));
         Component result = switch (profession) {
@@ -53,10 +53,6 @@ public final class ProfessionOffers {
                 Items.ARROW, 4, reputation);
             case "mason" -> conversion(villager, Map.of(Items.STONE, 4), Items.STONE_BRICKS, 4, reputation);
             case "shepherd" -> weaving(villager, reputation);
-            case "cleric" -> ServiceItems.count(villager.getInventory(), Items.REDSTONE) > 0
-                || ServiceItems.count(villager.getInventory(), Items.GLOWSTONE_DUST) > 0
-                || ServiceItems.count(villager.getInventory(), Items.LAPIS_LAZULI) > 0
-                ? ready(text("blessing"), foodFirst) : text("materials", text("alchemy_cost"));
             default -> repair(villager, player, state, service, reputation, now, switch (profession) {
                 case "toolsmith" -> RepairService.TOOLS;
                 case "weaponsmith" -> RepairService.WEAPONS;
@@ -74,6 +70,18 @@ public final class ProfessionOffers {
     private static Component status(String service, Component detail) { return text("service", text(service), detail); }
     private static Component ready(Component detail, boolean foodFirst) {
         return text(foodFirst ? "after_food" : "available", detail);
+    }
+    private static Component cleric(Villager villager, ServerPlayer player,
+                                     Optional<Collection<String>> positions, boolean foodFirst) {
+        int reputation = ProfessionInteractions.reputation(villager, player);
+        var plan = ClericInteraction.blessing(reputation, player.getHealth());
+        if (plan.isEmpty()) return text("cleric_health_required", reputation <= -100 ? 2 : 6);
+        if (positions.isEmpty()) return text("village_required");
+        long remaining = ClericInteraction.remainingAt(SaviorState.get(player.level()), player.getUUID(), positions.get(),
+            player.level().getGameTime());
+        if (remaining > 0) return text("cooldown", VillagerInspection.seconds(remaining));
+        return ClericInteraction.reagent(villager).isPresent()
+            ? ready(text("blessing", plan.get().duration() / 20), foodFirst) : text("materials", text("alchemy_cost"));
     }
     private static Component rations(Villager villager, int reputation) {
         var inventory = FarmerInteraction.previewInventory(villager.getInventory());

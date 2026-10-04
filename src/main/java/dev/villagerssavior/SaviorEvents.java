@@ -7,6 +7,10 @@ import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.npc.villager.VillagerProfession;
+import dev.villagerssavior.debug.ReputationScan;
+import dev.villagerssavior.mixin.InspectionLevelAccess;
+import dev.villagerssavior.mixin.InspectionEntityManagerAccess;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.ai.gossip.GossipType;
 import net.minecraft.world.item.ItemStack;
@@ -40,6 +44,25 @@ public final class SaviorEvents {
         if (type == EntityTypes.RAVAGER || type == EntityTypes.WARDEN || type == EntityTypes.WITHER || type == EntityTypes.ENDER_DRAGON) return 3;
         if (type == EntityTypes.CREEPER || type == EntityTypes.ENDERMAN || type == EntityTypes.EVOKER || type == EntityTypes.VINDICATOR || type == EntityTypes.PIGLIN_BRUTE) return 2;
         return 1;
+    }
+    /** Keeps vanilla witness gossip, then adds the Nitwit penalty to all living loaded village residents. */
+    public static void nitwitKilled(Villager victim, Entity killer) {
+        if (!(victim.level() instanceof ServerLevel level) || !(killer instanceof ServerPlayer player)
+            || !victim.getVillagerData().profession().is(VillagerProfession.NITWIT)) return;
+        final Optional<ReputationScan.Region> village;
+        try { village = ReputationScan.village(level, victim.blockPosition()); }
+        catch (IllegalArgumentException tooLarge) { return; }
+        if (village.isEmpty()) return;
+        // Roll once per death, so every resident records the same additional minor penalty.
+        int minor = 10 + victim.getRandom().nextInt(11);
+        var sections = ((InspectionEntityManagerAccess) ((InspectionLevelAccess) level).savior$entityManager()).savior$sections();
+        for (var chunk : village.get().chunks()) sections.getExistingSectionsInChunk(chunk.pack())
+            .flatMap(section -> section.getEntities()).forEach(entity -> {
+                if (!(entity instanceof Villager resident) || resident == victim || !resident.isAlive()
+                    || !village.get().contains(resident.position())) return;
+                SaviorGossip.add(resident, player.getUUID(), GossipType.MAJOR_NEGATIVE, 1);
+                SaviorGossip.add(resident, player.getUUID(), GossipType.MINOR_NEGATIVE, minor);
+            });
     }
     public static void death(LivingEntity entity, DamageSource source) {
         // Real hidden inventory drops for every villager death, regardless of what (or who) killed it.

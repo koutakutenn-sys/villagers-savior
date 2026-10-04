@@ -40,8 +40,9 @@ public final class IntegrationChecks {
         try {
             checks += FoodRulesChecks.run();
             results.add("PASS 35456 numerical food-rule checks");
-            checks += ProfessionChecks.run();
-            results.add("PASS profession rule checks");
+            int professionRules = ProfessionChecks.run();
+            checks += professionRules;
+            results.add("PASS " + professionRules + " profession rule checks");
             var level = server.overworld();
             level.getChunk(0,0); level.getChunk(1,0); level.getChunk(2,0);
             var player = player(server, level);
@@ -207,9 +208,13 @@ public final class IntegrationChecks {
             SaviorEvents.raidWon(level,poiPos,Set.of(player.getUUID()));
             check(value(v,player,GossipType.MAJOR_POSITIVE)==2,"repeat raid within week cannot award");
             AdditionalChecks.run(server, IntegrationChecks::check);
+            VillagerDeathChecks.run(server, IntegrationChecks::check);
+            NitwitInventoryChecks.run(server, IntegrationChecks::check);
+            ClericChecks.run(server, IntegrationChecks::check);
             var profession = ProfessionIntegrationChecks.run(server, level);
             results.addAll(profession.lines());
             checks += profession.checks();
+            results.add("PASS " + profession.checks() + " profession integration checks");
             HudInspectionChecks.run(server, IntegrationChecks::check);
             ReputationScanChecks.run(server, IntegrationChecks::check);
             pass=results.stream().noneMatch(r -> r.startsWith("FAIL"));

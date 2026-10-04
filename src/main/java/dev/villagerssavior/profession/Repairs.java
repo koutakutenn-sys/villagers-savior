@@ -26,7 +26,8 @@ public final class Repairs {
     }
     public record Job(int slot, ItemStack target, Item material, int available) {}
     /**
-     * The most damaged eligible stack among {@code targets} that {@code materials} can pay to repair.
+     * The eligible stack with the highest damage ratio that {@code materials} can pay to repair.
+     * Equal ratios keep the first eligible inventory slot.
      * The equipment belongs to the player; the repair material comes from the villager's own stock.
      */
     public static Optional<Job> find(Inventory targets, Container materials, Predicate<ItemStack> eligible) {
@@ -44,7 +45,7 @@ public final class Repairs {
                 if (candidate.is(material)) available += candidate.getCount();
             }
             if (material == null || available <= 0) continue;
-            if (best == null || ratio(target) < ratio(best.target())) best = new Job(slot, target, material, available);
+            if (best == null || ratio(target) > ratio(best.target())) best = new Job(slot, target, material, available);
         }
         return Optional.ofNullable(best);
     }

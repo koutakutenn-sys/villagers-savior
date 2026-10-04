@@ -135,22 +135,34 @@ public final class HudInspectionChecks {
                 default -> Items.IRON_PICKAXE;
             };
             var damaged = new ItemStack(target); damaged.setDamageValue(80); p.getInventory().setItem(15, damaged);
+            String name = profession.identifier().getPath();
+            boolean repair = Set.of("toolsmith", "weaponsmith", "armorer", "leatherworker").contains(name);
+            var slight = new ItemStack(target); slight.setDamageValue(10);
+            if (repair) p.getInventory().setItem(14, slight);
             beforeHistory = history(state); beforeInventory = inventory(p.getInventory());
             String villagerStock = inventory(v.getInventory());
             var offer = VillagerInspection.inspect(v, p);
-            String name = profession.identifier().getPath();
             check.accept(has(offer, "available"), "HUD offers available " + name + " service");
+            if (repair) {
+                var predicted = offer.offers().stream().map(line -> find(line, "repair"))
+                    .filter(Objects::nonNull).findFirst();
+                check.accept(predicted.map(contents -> ((Number) contents.getArgs()[1]).intValue() == 80).orElse(false),
+                    "HUD repair priority previews the more damaged equipment for " + name);
+            }
             for (int i = 0; i < 3; i++) VillagerInspection.inspect(v, p);
             check.accept(beforeHistory.equals(history(state)) && beforeInventory.equals(inventory(p.getInventory()))
                 && villagerStock.equals(inventory(v.getInventory())) && !p.hasEffect(net.minecraft.world.effect.MobEffects.REGENERATION),
                 "HUD leaves inventories, durability, effects and history unchanged for " + name);
             check.accept(ProfessionInteractions.serve(v, p).isPresent(), "real " + name + " service succeeds after read-only preview");
+            if (repair) check.accept(damaged.getDamageValue() == 0 && slight.getDamageValue() == 10,
+                "HUD repair priority matches the actual repaired equipment for " + name);
             if (!name.equals("librarian") && !name.equals("cartographer"))
                 check.accept(has(VillagerInspection.inspect(v, p), "cooldown"), "HUD displays actual " + name + " cooldown");
         }
-        villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.CLERIC));
+        villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.FLETCHER));
         villager.getGossips().clear(); player.getInventory().clearContent();
         check.accept(has(VillagerInspection.inspect(villager, player), "trust_required"), "HUD shows insufficient reputation");
+        villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.CLERIC));
         SaviorGossip.add(villager, player.getUUID(), GossipType.MAJOR_POSITIVE, 20);
         check.accept(has(VillagerInspection.inspect(villager, player), "materials"), "HUD shows missing alchemy stock");
         villager.getInventory().setItem(1, new ItemStack(Items.REDSTONE)); player.getFoodData().setFoodLevel(10);
@@ -179,7 +191,8 @@ public final class HudInspectionChecks {
         villager.stopSleeping(); villager.snapTo(4096, 4, 4096);
         check.accept(has(VillagerInspection.inspect(villager, player), "village_required"), "HUD blocks village-scoped services outside village");
         villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.NITWIT));
-        check.accept(has(VillagerInspection.inspect(villager, player), "service_none"), "HUD identifies villagers without profession services");
+        var nitwitDetails = VillagerInspection.inspect(villager, player);
+        check.accept(has(nitwitDetails, "nitwit_items") || has(nitwitDetails, "nitwit_empty"), "HUD identifies nitwit inventory handover");
     }
 
     /** The stock each profession needs to be able to offer its (now free) service. */

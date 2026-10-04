@@ -1,6 +1,7 @@
 package dev.villagerssavior.debug;
 
 import dev.villagerssavior.FoodRules;
+import dev.villagerssavior.NitwitInventory;
 import dev.villagerssavior.SaviorState;
 import dev.villagerssavior.Villages;
 import dev.villagerssavior.profession.ProfessionOffers;
@@ -18,6 +19,10 @@ public final class VillagerInspection {
         List<Component> lines = new ArrayList<>();
         if (villager.isSleeping() || (villager.getTradingPlayer() != null && villager.getTradingPlayer() != player)) {
             lines.add(text(villager.isSleeping() ? "sleeping" : "busy"));
+        } else if (NitwitInventory.isNitwit(villager)) {
+            int[] contents = NitwitInventory.contents(villager);
+            lines.add(Arrays.stream(contents).anyMatch(count -> count > 0)
+                ? text("nitwit_items", items(villager.getInventory(), contents)) : text("nitwit_empty"));
         } else {
             var positions = Villages.positions(player.level(), villager.blockPosition());
             boolean foodFirst = food(villager, player, positions, lines);
