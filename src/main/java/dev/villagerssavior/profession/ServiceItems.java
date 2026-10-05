@@ -42,10 +42,21 @@ public final class ServiceItems {
     /** Adds to a villager inventory; false when it would not fit, so callers never consume first. */
     public static boolean give(SimpleContainer container, ItemStack stack) {
         if (stack.isEmpty()) return true;
-        if (!container.canAddItem(stack)) return false;
-        container.addItem(stack);
+        if (roomFor(container, stack) < stack.getCount()) return false;
+        container.addItem(stack.copy());
         container.setChanged();
         return true;
+    }
+    /** The amount of this stack that fits, using vanilla insertion on an independent copy. */
+    public static int roomFor(SimpleContainer container, ItemStack stack) {
+        if (stack.isEmpty()) return 0;
+        return stack.getCount() - copy(container).addItem(stack.copy()).getCount();
+    }
+    public static SimpleContainer copy(SimpleContainer container) {
+        var copy = new SimpleContainer(container.getContainerSize());
+        for (int slot = 0; slot < container.getContainerSize(); slot++)
+            copy.setItem(slot, container.getItem(slot).copy());
+        return copy;
     }
     /** Nutrition of every edible stack, filling {@code nutrition} (-1 for non-food) and {@code counts}. */
     public static long nutrition(Container container, int[] nutrition, int[] counts) {

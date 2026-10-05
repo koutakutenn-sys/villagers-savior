@@ -12,8 +12,8 @@ import net.minecraft.world.item.ItemStack;
  * Profession production: a successful vanilla workstation restock ("补货") adds a little of the profession's
  * own stock to the villager's real hidden inventory.
  *
- * <p>Every resource is bounded by its own production model, so nothing can be farmed by leaving the game
- * running: at most {@code perRestock} per restock, at most {@code dailyCap} per in-game day, production stops
+ * <p>Every resource is bounded per villager: at most {@code perRestock} per restock, at most
+ * {@code dailyCap} per in-game day, production stops
  * at {@code target} and can never pass {@code hardCap}. Hard caps only limit what this mod adds; items a
  * villager obtained through vanilla behaviour are never removed.
  */
@@ -38,9 +38,13 @@ public final class ProfessionProduction {
         int amount = ProfessionResources.producible(resource,
             ServiceItems.count(villager.getInventory(), resource.item()));
         if (amount <= 0) return 0;
-        amount = state.dailyVillagerGrant(dailyKey(resource), villager.getUUID(), now, amount, resource.dailyCap());
+        amount = Math.min(amount, state.dailyVillagerRemaining(dailyKey(resource), villager.getUUID(), now, resource.dailyCap()));
+        amount = ServiceItems.roomFor(villager.getInventory(), new ItemStack(resource.item(), amount));
         if (amount <= 0) return 0;
-        return ServiceItems.give(villager.getInventory(), new ItemStack(resource.item(), amount)) ? amount : 0;
+        if (!ServiceItems.give(villager.getInventory(), new ItemStack(resource.item(), amount))) return 0;
+        // Restock and insertion run synchronously on the server thread: book only successful insertion.
+        state.dailyVillagerGrant(dailyKey(resource), villager.getUUID(), now, amount, resource.dailyCap());
+        return amount;
     }
     /** Stable daily-counter key for one produced item. */
     static String dailyKey(ProfessionResources.Resource resource) {

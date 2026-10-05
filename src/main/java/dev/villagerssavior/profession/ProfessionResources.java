@@ -4,7 +4,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.ColorCollection; // kept for the wool table comment
 import java.util.*;
 
 /**
@@ -57,7 +56,7 @@ public final class ProfessionResources {
             produce(Items.FLINT, 1, 1, 4, 8),
             produce(Items.FEATHER, 1, 1, 4, 8),
             produce(Items.STICK, 1, 1, 4, 8)));
-        // The table lists every wool colour; production uses white wool and the caps below apply to it.
+        // Only white wool is produced; naturally acquired wool of other colours is left untouched.
         TABLES.put(VillagerProfession.SHEPHERD, List.of(produce(Items.WOOL.pick(net.minecraft.world.item.DyeColor.WHITE), 1, 1, 4, 8)));
         TABLES.put(VillagerProfession.MASON, List.of(
             produce(Items.STONE, 1, 2, 8, 16),

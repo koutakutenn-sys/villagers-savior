@@ -9,7 +9,7 @@ import net.minecraft.world.item.Items;
 import java.util.Map;
 import java.util.Optional;
 
-/** Butcher service: cooks the player's real raw meat with the player's real coal. */
+/** Butcher service: cooks the villager's real raw meat with the villager's real coal. */
 public final class ButcherInteraction implements ProfessionInteraction {
     private static final Map<Item, Item> RECIPES = Map.of(
         Items.BEEF, Items.COOKED_BEEF,

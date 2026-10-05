@@ -170,7 +170,7 @@ public final class HudInspectionChecks {
         check.accept(has(VillagerInspection.inspect(villager, player), "after_food"), "HUD explains gift priority over services");
         villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.FARMER));
         player.getFoodData().setFoodLevel(20); villager.getInventory().clearContent();
-        villager.getInventory().setItem(0, new ItemStack(Items.WHEAT, 24)); beforeInventory = inventory(villager.getInventory());
+        villager.getInventory().setItem(0, new ItemStack(Items.WHEAT, 9)); beforeInventory = inventory(villager.getInventory());
         details = VillagerInspection.inspect(villager, player);
         check.accept(has(details, "ration_stock"), "HUD does not promise bread when processed wheat has insufficient shareable surplus");
         check.accept(beforeInventory.equals(inventory(villager.getInventory())), "farmer preview leaves real wheat unprocessed");
@@ -180,10 +180,10 @@ public final class HudInspectionChecks {
         villager.getInventory().setItem(1, new ItemStack(Items.WHEAT, 24));
         beforeInventory = inventory(villager.getInventory());
         details = VillagerInspection.inspect(villager, player);
-        check.accept(has(details, "available") && offered(details) == 3, "HUD simulates wheat processing and predicts three spare potatoes");
+        check.accept(has(details, "available") && offered(details) == 1, "HUD stops processing at the first selectable ration: one potato");
         check.accept(beforeInventory.equals(inventory(villager.getInventory())), "mixed farmer stock remains unchanged during preview");
         check.accept(ProfessionInteractions.serve(villager, player).orElse("").equals("ration")
-            && villager.getInventory().countItem(Items.POTATO) == 17, "mixed farmer preview matches actual ration quantity");
+            && villager.getInventory().countItem(Items.POTATO) == 19, "mixed farmer preview matches actual ration quantity");
         villager.setTradingPlayer(new ServerPlayer(server, level, new GameProfile(UUID.randomUUID(), "Other"), ClientInformation.createDefault()));
         check.accept(has(VillagerInspection.inspect(villager, player), "busy"), "HUD blocks busy villagers");
         villager.setTradingPlayer(null); villager.startSleeping(homePos);

@@ -84,7 +84,7 @@ public final class ProfessionOffers {
             ? ready(text("blessing", plan.get().duration() / 20), foodFirst) : text("materials", text("alchemy_cost"));
     }
     private static Component rations(Villager villager, int reputation) {
-        var inventory = FarmerInteraction.previewInventory(villager.getInventory());
+        var inventory = FarmerInteraction.previewInventory(villager.getInventory(), reputation);
         int[] nutrition = new int[inventory.getContainerSize()], counts = new int[nutrition.length];
         long total = ServiceItems.nutrition(inventory, nutrition, counts);
         int[] selection = FoodRules.select(nutrition, counts, Rations.budget(Math.max(0L, total - 20), reputation));

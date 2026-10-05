@@ -78,6 +78,8 @@ has per-restock and per-item daily limits, inventory targets and hard caps. Farm
 beds and evidence of a crop type; unemployed villagers and nitwits do not produce resources. Librarians and
 cartographers produce paper/books as listed in the profession tables, while their request services only
 provide information. Gifts transfer existing stock, and processing services consume the villager's ingredients.
+Failed production in a full inventory spends no daily quota; partial room books only the inserted quantity.
+The limit remains per villager, so adding workers can still scale total production; there is no village-wide cap.
 
 ### Reputation
 
@@ -146,6 +148,13 @@ provide information. Gifts transfer existing stock, and processing services cons
 - History is stored in each dimension's world saved data `villagers_savior:history`
   (`<world>/data/villagers_savior/history.dat`) and contains daily rewards, the 7-day rolling kill history,
   cooldowns and village identities. It survives server restarts, and dimensions are independent of each other.
+- Cooldown lookups use canonical village IDs; loading older history or merging villages preserves the latest
+  timestamp. Every 1200 ticks per dimension, maintenance removes cooldown/kill records at least 7 game days
+  old and empty kill keys. Daily counters keep the current and previous game day; POI IDs and aliases remain permanent.
+- HUD topology snapshots are shared for 100 ticks, with at most 8192 POI keys per dimension. Real requests,
+  death penalties and debug scans still inspect current topology. Empty farmers share nearby planted-crop
+  evidence for 200 ticks (up to 256 villages per dimension); live inventory evidence always takes priority.
+  The first crop scan still visits up to 38025 coordinates. Cache checks do not establish large-server TPS.
 
 ## Building and verification
 
@@ -163,7 +172,13 @@ provide information. Gifts transfer existing stock, and processing services cons
   cooldown, network request validation, raid victory, and a world-saved-data disk round trip
   (`PersistenceCheck`).
 - Verification records:
-  - Latest local release-jar check (2026-10-05, repair target priority): **39970 server assertions passed**,
+  - Latest release-jar check (2026-10-05, logic and lookup costs): **40037 server assertions passed**, SHA-256
+    `2a4a1991d85b44d1744b00a626649b77f268b33561076862670db01966fc0ab6`.
+    The previous release failed 12 assertions in the new logic regression suite. The final run includes
+    wheat rations, full/partial inventory production, bounded cache reuse/expiry, history maintenance and
+    five additional real disk-reload checks. No GUI client, third-party combination or large-server TPS test
+    was rerun. See [the review fixes audit](audit-reports/REVIEW-FIXES-AUDIT-2026-10-05.md).
+  - Earlier release-jar check (2026-10-05, repair target priority): **39970 server assertions passed**,
     SHA-256 `26b1468ef0e47c7402dde0cc8b5a30ad74a55017688e9f21af141ffd34d0cccb`.
     Repairs and HUD previews now select the eligible equipment with the highest damage ratio.
     The previous jar failed 27 regression assertions; all passed with the fixed jar. Server logic and HUD
@@ -174,6 +189,9 @@ provide information. Gifts transfer existing stock, and processing services cons
     This run covered server logic and HUD payloads; no GUI client or third-party combination was rerun.
     See [the final audit](audit-reports/CLERIC-AND-NITWIT-AUDIT-2026-10-05.md).
   - `./gradlew build`: passed (Gradle 9.5.1 + Fabric Loom 1.17.21, offline).
+  - The local [build workflow](.github/workflows/build.yml) uses JDK 25 and runs `build integrationTestClasses`
+    on push/PR. It compiles the integration suite without running a Minecraft server or accepting its EULA.
+    Its build command passed locally; this new workflow has not yet run on GitHub.
   - `FoodRulesChecks`: passed, 35456 assertions.
   - `PersistenceCheck`: passed, 4 disk round-trip checks; a control run against the pre-fix compiled classes
     reproduces the "cooldown lost after reload" failure, confirming the check is effective.

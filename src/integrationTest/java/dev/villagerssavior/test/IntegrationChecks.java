@@ -217,6 +217,7 @@ public final class IntegrationChecks {
             results.add("PASS " + profession.checks() + " profession integration checks");
             HudInspectionChecks.run(server, IntegrationChecks::check);
             ReputationScanChecks.run(server, IntegrationChecks::check);
+            PerformanceChecks.run(server, IntegrationChecks::check);
             pass=results.stream().noneMatch(r -> r.startsWith("FAIL"));
         } catch (Throwable failure) { results.add("FAIL " + failure); failure.printStackTrace(); }
         try {

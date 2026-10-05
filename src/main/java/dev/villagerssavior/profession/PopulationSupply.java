@@ -2,6 +2,7 @@ package dev.villagerssavior.profession;
 
 import dev.villagerssavior.SaviorState;
 import dev.villagerssavior.Villages;
+import dev.villagerssavior.TickCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -16,13 +17,14 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import java.util.Collection;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
- * The farmer's population supply: while a village has more reachable beds than villagers it has room to grow,
+ * The farmer's population supply: while a village has more home POIs than loaded villagers it has room to grow,
  * so a farmer that just finished restocking keeps one breeding reserve of the crop the village really grows.
  *
- * <p><b>Gameplay trade-off:</b> this is the one place where the mod deliberately conjures items instead of
- * moving real ones, because vanilla farmers are far too weak to sustain a village. The conjuring is bounded by
+ * <p><b>Gameplay trade-off:</b> like other profession production this adds bounded stock on restock. It is bounded by
  * the farmer's production model (one per restock, four per in-game day, stop at the breeding reserve, hard cap
  * 48) and the crop type must come from evidence: the farmer's real stock first, then crops that are really
  * planted around it. Bread is never produced on its own.
@@ -35,13 +37,15 @@ public final class PopulationSupply {
     private static final int SCAN_VERTICAL = 4;
     /** Villagers up to this far outside the village POI cluster still count as its population. */
     private static final int VILLAGE_MARGIN = 32;
+    public static final long CROP_TTL = 200L;
+    private static final Map<ServerLevel, TickCache<String, Integer>> CROPS = new WeakHashMap<>();
     /** Kept in a nested holder so the pure helpers above never need the item registry to be bootstrapped. */
     private static final class Crops {
         static final Item[] ITEMS = {Items.WHEAT, Items.CARROT, Items.POTATO, Items.BEETROOT};
         static final Block[] BLOCKS = {Blocks.WHEAT, Blocks.CARROTS, Blocks.POTATOES, Blocks.BEETROOTS};
     }
     private PopulationSupply() {}
-    /** The village only needs supplies while it has room to grow: population below reachable beds. */
+    /** The village only needs supplies while loaded population is below its home POI count. */
     public static boolean needsSupply(int population, int beds) { return population < beds; }
     /** How much has to be added to own exactly one breeding reserve. */
     public static int topUp(int held) { return Math.max(0, RESERVE - held); }
@@ -66,13 +70,13 @@ public final class PopulationSupply {
         if (own.isEmpty()) return 0;
         Collection<String> positions = own.get();
         if (!needsSupply(countPopulation(level, positions), countBeds(level, positions))) return 0;
-        int crop = chooseCrop(level, villager);
+        int crop = chooseCrop(level, villager, positions, now);
         if (crop < 0) return 0;
         var resource = ProfessionResources.find(VillagerProfession.FARMER, cropItem(crop));
         if (resource == null) return 0;
         return ProfessionProduction.produce(villager, state, now, resource);
     }
-    /** Reachable valid beds: the home POIs that belong to this village's connected POI cluster. */
+    /** Home POIs in the connected cluster; this does not test pathfinding to each bed. */
     private static int countBeds(ServerLevel level, Collection<String> positions) {
         PoiManager manager = level.getPoiManager();
         int beds = 0;
@@ -100,15 +104,18 @@ public final class PopulationSupply {
             maxX + 1 + VILLAGE_MARGIN, Math.min(level.getMaxY() + 1, maxY + 1 + VILLAGE_MARGIN), maxZ + 1 + VILLAGE_MARGIN);
         return level.getEntitiesOfClass(Villager.class, area, Entity::isAlive).size();
     }
-    /** What the village grows: the farmer's real stock first, then what is really planted around it. */
-    private static int chooseCrop(ServerLevel level, Villager villager) {
+    /** Live stock first; empty farmers share the first nearby crop scan in their village for 200 ticks. */
+    public static int chooseCrop(ServerLevel level, Villager villager, Collection<String> positions, long now) {
         int[] held = new int[Crops.ITEMS.length];
         for (int i = 0; i < Crops.ITEMS.length; i++) held[i] = ServiceItems.count(villager.getInventory(), Crops.ITEMS[i]);
         int fromStock = pickIndex(held);
         if (fromStock >= 0) return fromStock;
-        int[] planted = new int[Crops.ITEMS.length];
-        scanCrops(level, villager.blockPosition(), planted);
-        return pickIndex(planted);
+        String key = positions.stream().min(String::compareTo).orElseThrow();
+        return CROPS.computeIfAbsent(level, ignored -> new TickCache<>(CROP_TTL, 256)).get(key, now, () -> {
+            int[] planted = new int[Crops.ITEMS.length];
+            scanCrops(level, villager.blockPosition(), planted);
+            return pickIndex(planted);
+        });
     }
     private static void scanCrops(ServerLevel level, BlockPos center, int[] counts) {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
@@ -119,7 +126,7 @@ public final class PopulationSupply {
                     if (!level.isLoaded(cursor)) continue;
                     BlockState state = level.getBlockState(cursor);
                     for (int i = 0; i < Crops.BLOCKS.length; i++)
-                        if (state.is(Crops.BLOCKS[i])) counts[i]++;
+                        if (state.is(Crops.BLOCKS[i])) { counts[i]++; break; }
                 }
     }
 }

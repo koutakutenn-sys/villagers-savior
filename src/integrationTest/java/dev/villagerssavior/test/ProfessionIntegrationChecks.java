@@ -75,12 +75,14 @@ public final class ProfessionIntegrationChecks {
         }
         rationTests();
         wheatProcessingTests();
+        wheatRationRegressionTests();
         conversionTests();
         repairTests();
         repairPriorityTests();
         informationTests();
         populationSupplyTests();
         productionTests();
+        productionCapacityRegressionTests();
         tableConformanceTests();
         deathDropTests();
         cartographerTests();
@@ -168,6 +170,76 @@ public final class ProfessionIntegrationChecks {
         var state = SaviorState.get(level);
         check(state.ready("ration", p.getUUID(), village, now, Rations.COOLDOWN),
             "a failed handout does not start the ration cooldown");
+    }
+    private void wheatRationRegressionTests() {
+        for (int reputation : new int[] {25, 100}) {
+            var p = player();
+            p.getFoodData().setFoodLevel(20);
+            var farmer = villager(VillagerProfession.FARMER, 7, 8);
+            farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 64));
+            trusted(farmer, p, reputation);
+            var preview = dev.villagerssavior.debug.VillagerInspection.inspect(farmer, p);
+            check(HudInspectionChecks.has(preview, "available"), "plentiful wheat preview offers rations at R=" + reputation);
+            check(ServiceItems.count(farmer.getInventory(), Items.WHEAT) == 64
+                && ServiceItems.count(farmer.getInventory(), Items.BREAD) == 0,
+                "wheat preview leaves real stock untouched at R=" + reputation);
+            check(ProfessionInteractions.serve(farmer, p).orElse("none").equals("ration"),
+                "plentiful wheat yields a ration at R=" + reputation);
+            int breadMade = reputation == 25 ? 11 : 8;
+            check(ServiceItems.count(farmer.getInventory(), Items.WHEAT) == 64 - 3 * breadMade
+                && ServiceItems.count(farmer.getInventory(), Items.BREAD) == breadMade - 1,
+                "wheat ration transforms exact recipe quantities and retains reserve at R=" + reputation);
+            check(level.getEntitiesOfClass(ItemEntity.class, farmer.getBoundingBox().inflate(4),
+                item -> item.getOwner() == farmer && item.getItem().is(Items.BREAD))
+                .stream().mapToInt(item -> item.getItem().getCount()).sum() == 1,
+                "wheat ration spawns exactly one owned bread at R=" + reputation);
+            check(!SaviorState.get(level).ready("ration", p.getUUID(), village, now, Rations.COOLDOWN),
+                "successful wheat ration books cooldown at R=" + reputation);
+        }
+    }
+    private void productionCapacityRegressionTests() {
+        for (var profession : List.of(VillagerProfession.TOOLSMITH, VillagerProfession.CLERIC)) {
+            Item item = profession.equals(VillagerProfession.TOOLSMITH) ? Items.IRON_INGOT : Items.REDSTONE;
+            var resource = ProfessionResources.find(profession, item);
+            var worker = villager(profession, 12, 12);
+            var ledger = new SaviorState();
+            for (int slot = 0; slot < worker.getInventory().getContainerSize(); slot++)
+                worker.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+            var before = SaviorState.CODEC.encodeStart(com.mojang.serialization.JsonOps.INSTANCE, ledger).getOrThrow();
+            check(ProfessionProduction.produce(worker, ledger, now, resource) == 0, "full inventory produces nothing: " + item);
+            check(before.equals(SaviorState.CODEC.encodeStart(com.mojang.serialization.JsonOps.INSTANCE, ledger).getOrThrow()),
+                "failed production leaves daily quota unchanged: " + item);
+            worker.getInventory().setItem(0, ItemStack.EMPTY);
+            check(ProfessionProduction.produce(worker, ledger, now, resource) == 1,
+                "same-day production retries after making room: " + item);
+            check(ProfessionProduction.produce(worker, ledger, now, resource) == 0,
+                "successful retry still respects daily cap: " + item);
+        }
+        var worker = villager(VillagerProfession.FLETCHER, 13, 12);
+        var ledger = new SaviorState();
+        for (int slot = 0; slot < worker.getInventory().getContainerSize(); slot++)
+            worker.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        worker.getInventory().setItem(0, new ItemStack(Items.ARROW, 63));
+        var resource = new ProfessionResources.Resource(Items.ARROW, 2, 4, 128, 256);
+        check(ProfessionProduction.produce(worker, ledger, now, resource) == 1,
+            "partial room produces only the one arrow that fits");
+        check(ServiceItems.count(worker.getInventory(), Items.ARROW) == 64, "partial production fills exactly the available room");
+        check(ledger.dailyVillagerGrant("produce:minecraft:arrow", worker.getUUID(), now, 4, 4) == 3,
+            "partial production books only the inserted quantity");
+        var container = ServiceItems.copy(worker.getInventory());
+        container.setItem(0, new ItemStack(Items.ARROW, 63));
+        var offered = new ItemStack(Items.ARROW, 2);
+        check(!ServiceItems.give(container, offered) && container.getItem(0).getCount() == 63 && offered.getCount() == 2,
+            "atomic inventory insertion rejects partial room without mutating either stack");
+        check(ServiceItems.give(container, new ItemStack(Items.ARROW)) && container.getItem(0).getCount() == 64,
+            "atomic inventory insertion accepts exactly fitting stack");
+        var farmer = villager(VillagerProfession.FARMER, 14, 12);
+        for (int slot = 0; slot < farmer.getInventory().getContainerSize(); slot++)
+            farmer.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        farmer.getInventory().setItem(0, new ItemStack(Items.WHEAT, 3));
+        var p = player(); p.getFoodData().setFoodLevel(20); trusted(farmer, p, 100);
+        check(ProfessionInteractions.serve(farmer, p).isEmpty() && farmer.getInventory().getItem(0).is(Items.BREAD),
+            "baking can use the slot freed by consuming the last three wheat");
     }
     // ---------------------------------------------------------------- conversions
     private void conversionTests() {

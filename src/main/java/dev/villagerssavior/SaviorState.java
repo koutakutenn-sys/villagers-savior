@@ -47,12 +47,14 @@ public final class SaviorState extends SavedData {
     private final Map<String, Long> cooldowns;
     private final Map<String, String> pois;
     private final Map<String, String> aliases;
+    private long lastDailyPrune = Long.MIN_VALUE;
     public SaviorState() { this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of()); }
     private SaviorState(Map<String, Daily> daily, Map<String, List<Long>> kills,
                         Map<String, Long> cooldowns, Map<String, String> pois, Map<String, String> aliases) {
         this.daily = new HashMap<>(daily); this.kills = new HashMap<>();
         kills.forEach((k,v) -> this.kills.put(k, new ArrayList<>(v)));
         this.cooldowns = new HashMap<>(cooldowns); this.pois = new HashMap<>(pois); this.aliases = new HashMap<>(aliases);
+        normalizeCooldowns();
     }
     public static SaviorState get(ServerLevel level) { return level.getDataStorage().computeIfAbsent(TYPE); }
     public int dailyGrant(String event, UUID player, UUID villager, long now, int amount, int cap) {
@@ -62,7 +64,7 @@ public final class SaviorState extends SavedData {
         int count = old != null && old.day == day ? old.count : 0;
         int grant = Math.max(0, Math.min(amount, cap - count));
         if (grant > 0) {
-            daily.entrySet().removeIf(e -> e.getValue().day < day - 1);
+            pruneDaily(day);
             daily.put(key, new Daily(day, count + grant)); setDirty();
         }
         return grant;
@@ -78,7 +80,7 @@ public final class SaviorState extends SavedData {
         int count = old != null && old.day == day ? old.count : 0;
         int grant = Math.max(0, Math.min(amount, cap - count));
         if (grant > 0) {
-            daily.entrySet().removeIf(e -> e.getValue().day < day - 1);
+            pruneDaily(day);
             daily.put(key, new Daily(day, count + grant)); setDirty();
         }
         return grant;
@@ -98,7 +100,9 @@ public final class SaviorState extends SavedData {
         SortedSet<String> known = new TreeSet<>();
         for (String pos : positions) if (pois.containsKey(pos)) known.add(resolve(pois.get(pos)));
         String id = known.isEmpty() ? UUID.randomUUID().toString() : known.first();
-        for (String other : known) if (!other.equals(id)) { aliases.put(other, id); setDirty(); }
+        boolean merged = false;
+        for (String other : known) if (!other.equals(id)) { aliases.put(other, id); merged = true; setDirty(); }
+        if (merged) normalizeCooldowns();
         for (String pos : positions) if (!id.equals(pois.put(pos, id))) setDirty();
         return id;
     }
@@ -108,13 +112,8 @@ public final class SaviorState extends SavedData {
     }
     /** Ready when {@code window} ticks have elapsed since the last record for this player and village. */
     public boolean ready(String event, UUID player, String village, long now, long window) {
-        String suffix = ":" + player + ":";
-        String prefix = event + suffix;
-        long last = Long.MIN_VALUE;
-        for (var entry : cooldowns.entrySet())
-            if (entry.getKey().startsWith(prefix) && resolve(entry.getKey().substring(prefix.length())).equals(resolve(village)))
-                last = Math.max(last, entry.getValue());
-        return last == Long.MIN_VALUE || now - last >= window;
+        Long last = cooldowns.get(event + ":" + player + ":" + resolve(village));
+        return last == null || now - last >= window;
     }
     public void cooldown(String event, UUID player, String village, long now) {
         cooldowns.put(event + ":" + player + ":" + resolve(village), now); setDirty();
@@ -125,15 +124,48 @@ public final class SaviorState extends SavedData {
         int count = old != null && old.day == Math.floorDiv(now, 24000) ? old.count : 0;
         return Math.max(0, cap - count);
     }
+    /** Read-only production allowance; a failed insertion must not reserve this quota. */
+    public int dailyVillagerRemaining(String event, UUID villager, long now, int cap) {
+        Daily old = daily.get("v:" + event + ":" + villager);
+        int count = old != null && old.day == Math.floorDiv(now, 24000) ? old.count : 0;
+        return Math.max(0, cap - count);
+    }
     /** Read-only cooldown across every known ID in a connected POI region, including pending merges. */
     public long remainingAt(String event, UUID player, Collection<String> positions, long now, long window) {
         Set<String> ids = new HashSet<>();
         for (String pos : positions) if (pois.containsKey(pos)) ids.add(resolve(pois.get(pos)));
         String prefix = event + ":" + player + ":";
         long last = Long.MIN_VALUE;
-        for (var entry : cooldowns.entrySet())
-            if (entry.getKey().startsWith(prefix) && ids.contains(resolve(entry.getKey().substring(prefix.length()))))
-                last = Math.max(last, entry.getValue());
+        for (String id : ids) {
+            Long recorded = cooldowns.get(prefix + id);
+            if (recorded != null) last = Math.max(last, recorded);
+        }
         return last == Long.MIN_VALUE ? 0 : Math.max(0, window - (now - last));
+    }
+    /** Canonicalize once on load/merge, retaining the latest record when aliases collide. */
+    private void normalizeCooldowns() {
+        Map<String, Long> canonical = new HashMap<>();
+        cooldowns.forEach((key, time) -> {
+            int split = key.lastIndexOf(':');
+            String resolved = split < 0 ? key : key.substring(0, split + 1) + resolve(key.substring(split + 1));
+            canonical.merge(resolved, time, Math::max);
+        });
+        if (!canonical.equals(cooldowns)) {
+            cooldowns.clear(); cooldowns.putAll(canonical); setDirty();
+        }
+    }
+    private void pruneDaily(long day) {
+        if (day <= lastDailyPrune) return;
+        if (daily.entrySet().removeIf(e -> e.getValue().day < day - 1)) setDirty();
+        lastDailyPrune = day;
+    }
+    /** Periodic maintenance; POI identities and aliases remain permanent. Future records are retained. */
+    public void prune(long now) {
+        boolean changed = cooldowns.entrySet().removeIf(e -> now >= e.getValue() && now - e.getValue() >= WEEK);
+        for (var history : kills.values())
+            if (history.removeIf(t -> now >= t && now - t >= WEEK)) changed = true;
+        if (kills.entrySet().removeIf(e -> e.getValue().isEmpty())) changed = true;
+        pruneDaily(Math.floorDiv(now, 24000));
+        if (changed) setDirty();
     }
 }

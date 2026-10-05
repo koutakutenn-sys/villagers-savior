@@ -24,7 +24,7 @@ public final class VillagerInspection {
             lines.add(Arrays.stream(contents).anyMatch(count -> count > 0)
                 ? text("nitwit_items", items(villager.getInventory(), contents)) : text("nitwit_empty"));
         } else {
-            var positions = Villages.positions(player.level(), villager.blockPosition());
+            var positions = Villages.previewPositions(player.level(), villager.blockPosition());
             boolean foodFirst = food(villager, player, positions, lines);
             lines.addAll(ProfessionOffers.inspect(villager, player, positions, foodFirst));
         }

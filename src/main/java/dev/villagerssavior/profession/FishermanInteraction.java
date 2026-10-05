@@ -9,7 +9,7 @@ import net.minecraft.world.item.Items;
 import java.util.Map;
 import java.util.Optional;
 
-/** Fisherman service: cooks the player's real raw fish with the player's real coal. */
+/** Fisherman service: cooks the villager's real raw fish with the villager's real coal. */
 public final class FishermanInteraction implements ProfessionInteraction {
     private static final Map<Item, Item> RECIPES = Map.of(
         Items.COD, Items.COOKED_COD,
