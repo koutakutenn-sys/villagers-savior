@@ -37,6 +37,24 @@ public final class HudInspectionChecks {
         for (var sibling : line.getSiblings()) { var found = find(sibling, key); if (found != null) return found; }
         return null;
     }
+    /** The HUD title must not repeat the profession for villagers that have no custom name. */
+    private static void titleChecks(ServerLevel level, BiConsumer<Boolean, String> check) {
+        var plain = new Villager(EntityTypes.VILLAGER, level);
+        plain.snapTo(0.5, 4, 7.5);
+        plain.setVillagerData(plain.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.NITWIT));
+        level.addFreshEntity(plain);
+        var plainContents = (TranslatableContents) VillagerInspection
+            .title(plain, ReputationDebug.profession(plain), plain.getVillagerData().level()).getContents();
+        check.accept(plainContents.getKey().equals("hud.villagers_savior.title_profession")
+            && plainContents.getArgs().length == 2, "an unnamed villager shows its profession once");
+        plain.setCustomName(Component.literal("Bob"));
+        var namedContents = (TranslatableContents) VillagerInspection
+            .title(plain, ReputationDebug.profession(plain), plain.getVillagerData().level()).getContents();
+        check.accept(namedContents.getKey().equals("hud.villagers_savior.title") && namedContents.getArgs().length == 3
+            && namedContents.getArgs()[0] instanceof Component name && name.getString().equals("Bob"),
+            "a named villager keeps its name next to the profession");
+        plain.discard();
+    }
     public static boolean has(VillagerDetails details, String key) {
         return details.offers().stream().anyMatch(line -> find(line, key) != null);
     }
@@ -70,6 +88,7 @@ public final class HudInspectionChecks {
         var villager = new Villager(EntityTypes.VILLAGER, level); villager.snapTo(0.5, 4, 0.5);
         villager.setNoAi(true); level.addFreshEntity(villager);
         var state = SaviorState.get(level);
+        titleChecks(level, check);
         villager.getInventory().setItem(0, new ItemStack(Items.POTATO, 40));
         player.getFoodData().setFoodLevel(10);
         String beforeHistory = history(state), beforeInventory = inventory(villager.getInventory());

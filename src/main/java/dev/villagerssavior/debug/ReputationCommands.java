@@ -2,6 +2,8 @@ package dev.villagerssavior.debug;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import dev.villagerssavior.SaviorEvents;
+import dev.villagerssavior.SaviorGossip;
 import java.util.*;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -10,13 +12,19 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.ai.gossip.GossipType;
+import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.level.Level;
 import static net.minecraft.commands.Commands.*;
 
 /** Operator-only debug reports, always about the calling player's real vanilla reputation. */
 public final class ReputationCommands {
     private static final int PAGE_SIZE = 10;
+    /** Sanity bound for the requested reputation; the gossip caps clamp anything larger anyway. */
+    private static final int FAVOR_LIMIT = 100_000;
+    private enum FavorMode { ADD, SET, CLEAR }
     private record Cached(ResourceKey<Level> dimension, long created, ReputationScan.Summary summary) {}
     private static final Map<ServerPlayer, Cached> RESULTS = new WeakHashMap<>();
     private static final Set<ServerPlayer> RUNNING = Collections.newSetFromMap(new WeakHashMap<>());
@@ -30,6 +38,28 @@ public final class ReputationCommands {
                     .then(argument("radius", IntegerArgumentType.integer(1, ReputationScan.MAX_RADIUS))
                         .executes(context -> begin(context.getSource(), IntegerArgumentType.getInteger(context, "radius"), false))))
                 .then(literal("village").executes(context -> begin(context.getSource(), 64, true)))
+                // Bulk favour editing over any distance; radius defaults to a village-sized area and its
+                // upper bound is the world border, so the edit is never capped by the smaller scan radius.
+                .then(literal("favor")
+                    .then(literal("add")
+                        .then(argument("delta", IntegerArgumentType.integer(-FAVOR_LIMIT, FAVOR_LIMIT))
+                            .executes(context -> favor(context.getSource(), FavorGossip.DEFAULT_RADIUS, FavorMode.ADD,
+                                IntegerArgumentType.getInteger(context, "delta")))
+                            .then(argument("radius", IntegerArgumentType.integer(1, FavorGossip.MAX_RADIUS))
+                                .executes(context -> favor(context.getSource(), IntegerArgumentType.getInteger(context, "radius"),
+                                    FavorMode.ADD, IntegerArgumentType.getInteger(context, "delta"))))))
+                    .then(literal("set")
+                        .then(argument("total", IntegerArgumentType.integer(-FAVOR_LIMIT, FAVOR_LIMIT))
+                            .executes(context -> favor(context.getSource(), FavorGossip.DEFAULT_RADIUS, FavorMode.SET,
+                                IntegerArgumentType.getInteger(context, "total")))
+                            .then(argument("radius", IntegerArgumentType.integer(1, FavorGossip.MAX_RADIUS))
+                                .executes(context -> favor(context.getSource(), IntegerArgumentType.getInteger(context, "radius"),
+                                    FavorMode.SET, IntegerArgumentType.getInteger(context, "total"))))))
+                    .then(literal("clear")
+                        .executes(context -> favor(context.getSource(), FavorGossip.DEFAULT_RADIUS, FavorMode.CLEAR, 0))
+                        .then(argument("radius", IntegerArgumentType.integer(1, FavorGossip.MAX_RADIUS))
+                            .executes(context -> favor(context.getSource(), IntegerArgumentType.getInteger(context, "radius"),
+                                FavorMode.CLEAR, 0)))))
                 .then(literal("list").executes(context -> list(context.getSource(), 1))
                     .then(argument("page", IntegerArgumentType.integer(1))
                         .executes(context -> list(context.getSource(), IntegerArgumentType.getInteger(context, "page"))))))));
@@ -76,6 +106,69 @@ public final class ReputationCommands {
             }));
         } catch (RuntimeException error) { RUNNING.remove(player); source.sendFailure(text("failed")); return 0; }
         return 1;
+    }
+    /**
+     * Bulk-edits the calling player's real vanilla gossip for every living villager within {@code radius}.
+     * No parallel reputation is stored, and the success message reports the values that were actually
+     * reached (vanilla caps can clamp a request).
+     */
+    private static int favor(CommandSourceStack source, int radius, FavorMode mode, int amount) throws CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        ServerLevel level = (ServerLevel) player.level();
+        List<Villager> targets = SaviorEvents.villagers(level, player.position(), radius);
+        if (targets.isEmpty()) { source.sendFailure(text("favor_none", radius)); return 0; }
+        int minAfter = Integer.MAX_VALUE, maxAfter = Integer.MIN_VALUE;
+        int minChange = Integer.MAX_VALUE, maxChange = Integer.MIN_VALUE;
+        for (Villager villager : targets) {
+            int before = storedFavor(villager, player);
+            switch (mode) {
+                // ADD is "clamp(current + delta)" and then written absolutely, so a delta that the major gossip
+                // entry can no longer absorb still uses the remaining minor headroom instead of silently doing
+                // nothing (which made add look broken once favour passed +100).
+                case ADD -> writeFavor(villager, player, FavorGossip.clamp(before + amount));
+                case SET -> writeFavor(villager, player, amount);
+                case CLEAR -> clearFavor(villager, player);
+            }
+            int value = storedFavor(villager, player);
+            minChange = Math.min(minChange, value - before);
+            maxChange = Math.max(maxChange, value - before);
+            minAfter = Math.min(minAfter, value);
+            maxAfter = Math.max(maxAfter, value);
+        }
+        send(source, switch (mode) {
+            case ADD -> text("favor_add", amount, targets.size(), radius, minChange, maxChange, minAfter, maxAfter);
+            case SET -> text("favor_set", FavorGossip.clamp(amount), targets.size(), radius, minAfter, maxAfter, amount);
+            case CLEAR -> text("favor_clear", targets.size(), radius);
+        });
+        return targets.size();
+    }
+    /**
+     * Writes the request as real vanilla gossip entries. Entry values are always magnitudes; the sign comes
+     * from the gossip type's own weight, so negative favour really becomes negative reputation instead of
+     * being flattened to zero (which is all {@link SaviorGossip#subtract} can do, since it only trims
+     * existing positive entries).
+     */
+    /**
+     * Writes exactly {@code target} as real vanilla gossip, replacing this player's existing entries. Writing
+     * absolutely (rather than adding to whatever type the decomposition happened to pick) is what keeps the
+     * whole representable range reachable in one step.
+     */
+    private static void writeFavor(Villager villager, ServerPlayer player, int target) {
+        clearFavor(villager, player);
+        for (FavorGossip.Entry entry : FavorGossip.entriesFor(target)) {
+            SaviorGossip.add(villager, player.getUUID(), entry.type(), entry.value());
+        }
+    }
+    /**
+     * The villager's stored total for this player, read straight from the gossip container: a nitwit's
+     * {@code getPlayerReputation} is fixed at zero, while this command edits what is really stored.
+     */
+    private static int storedFavor(Villager villager, ServerPlayer player) {
+        return villager.getGossips().getReputation(player.getUUID(), type -> true);
+    }
+    /** Removes every gossip entry this player has with the villager, leaving its other opinions untouched. */
+    private static void clearFavor(Villager villager, ServerPlayer player) {
+        for (GossipType type : GossipType.values()) villager.getGossips().remove(player.getUUID(), type);
     }
     private static int list(CommandSourceStack source, int page) throws CommandSyntaxException {
         var player = source.getPlayerOrException(); var cached = RESULTS.get(player);

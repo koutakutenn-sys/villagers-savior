@@ -145,9 +145,14 @@ public final class ReputationScanChecks {
             var id = key.identifier(); professions.put(villager.getUUID(), id.getNamespace().equals("minecraft") ? id.getPath() : id.toString());
         }
         var jobsScan = ReputationScan.scan(player, ReputationScan.nearby(new Vec3(1000, 4, 0.5), 64)).join();
-        for (var expected : professions.entrySet()) check.accept(jobsScan.entries().stream().anyMatch(entry ->
-            entry.uuid().equals(expected.getKey()) && entry.profession().equals(expected.getValue()) && entry.reputation() == 7 && !entry.saved()),
-            "individual live profession and reputation retained: " + expected.getValue());
+        for (var expected : professions.entrySet()) {
+            // Nitwits keep their gossip but never report a standing of their own (see VillagerReputationMixin).
+            int reputation = expected.getValue().equals("nitwit") ? 0 : 7;
+            check.accept(jobsScan.entries().stream().anyMatch(entry ->
+                entry.uuid().equals(expected.getKey()) && entry.profession().equals(expected.getValue())
+                    && entry.reputation() == reputation && !entry.saved()),
+                "individual live profession and reputation retained: " + expected.getValue());
+        }
         check.accept(level.getChunkSource().getLoadedChunksCount() == chunksBefore,
             "scan reads villagers held in non-active sections without terrain loading");
         var malformed = tag(savedOne); malformed.remove("VillagerData"); boolean failed = false;

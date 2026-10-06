@@ -43,6 +43,12 @@ public final class IntegrationChecks {
             int professionRules = ProfessionChecks.run();
             checks += professionRules;
             results.add("PASS " + professionRules + " profession rule checks");
+            int favorRules = FavorChecks.run();
+            checks += favorRules;
+            results.add("PASS " + favorRules + " favor gossip rule checks");
+            int nitwitRules = NitwitRelayChecks.run();
+            checks += nitwitRules;
+            results.add("PASS " + nitwitRules + " nitwit relay rule checks");
             var level = server.overworld();
             level.getChunk(0,0); level.getChunk(1,0); level.getChunk(2,0);
             var player = player(server, level);
@@ -218,6 +224,8 @@ public final class IntegrationChecks {
             HudInspectionChecks.run(server, IntegrationChecks::check);
             ReputationScanChecks.run(server, IntegrationChecks::check);
             PerformanceChecks.run(server, IntegrationChecks::check);
+            FavorChecks.run(server, level, IntegrationChecks::check);
+            NitwitRelayChecks.run(server, level, IntegrationChecks::check);
             pass=results.stream().noneMatch(r -> r.startsWith("FAIL"));
         } catch (Throwable failure) { results.add("FAIL " + failure); failure.printStackTrace(); }
         try {

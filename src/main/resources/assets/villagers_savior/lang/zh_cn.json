@@ -1,4 +1,8 @@
 {
+  "debug.villagers_savior.favor_none": "%s 格范围内没有村民",
+  "debug.villagers_savior.favor_add": "请求好感 %s：%s 名村民（%s 格内，实际变化 %s..%s，现为 %s..%s）",
+  "debug.villagers_savior.favor_set": "已把好感设为 %s：%s 名村民（%s 格内，现为 %s..%s，请求值 %s）",
+  "debug.villagers_savior.favor_clear": "已清除 %s 名村民（%s 格内）对本玩家的好感记录",
   "debug.villagers_savior.scanning": "正在只读扫描 %s 个区块的村民数据…",
   "debug.villagers_savior.running": "扫描正在进行或请求过于频繁，请稍后重试。",
   "debug.villagers_savior.no_village": "未找到附近村庄，或村庄 POI 连接区域超过扫描限制。",
@@ -19,6 +23,7 @@
   "key.category.villagers_savior.requests": "Villagers' Savior · 村民救星",
   "key.villagers_savior.request_food": "请求食物／职业服务（按住并交互）",
   "hud.villagers_savior.title": "%s · %s（等级 %s）",
+  "hud.villagers_savior.title_profession": "%s（等级 %s）",
   "hud.villagers_savior.nitwit_items": "愿意交出全部收集物品：%s（无好感门槛，无冷却）",
   "hud.villagers_savior.nitwit_empty": "暂无收集物品可以交出",
   "message.villagers_savior.nitwit_items": "傻子村民交出了全部收集物品。",

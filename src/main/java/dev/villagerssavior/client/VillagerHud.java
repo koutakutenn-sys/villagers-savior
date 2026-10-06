@@ -2,6 +2,7 @@ package dev.villagerssavior.client;
 
 import dev.villagerssavior.debug.ReputationQuery;
 import dev.villagerssavior.debug.VillagerDetails;
+import dev.villagerssavior.debug.VillagerInspection;
 import dev.villagerssavior.profession.LibrarianInteraction;
 import java.util.*;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -57,8 +58,7 @@ public final class VillagerHud {
             || !details.reputation().villagerUuid().equals(villager.getUUID().toString())) return List.of();
         var report = details.reputation();
         List<Component> lines = new ArrayList<>();
-        lines.add(text("title", villager.getDisplayName(),
-            Component.translatable("entity.minecraft.villager." + report.profession()), report.level()));
+        lines.add(VillagerInspection.title(villager, report.profession(), report.level()));
         lines.add(text("reputation", report.total(), Component.translatable(LibrarianInteraction.standing(report.total()))));
         lines.addAll(details.offers());
         lines.add(text("request_hint", SaviorClient.requestFood.getTranslatedKeyMessage()));

@@ -55,7 +55,16 @@ Requires cheats or operator level 2. Reports each villager's real reputation tow
 /villagerssavior debug nearby 128   # radius 1–256
 /villagerssavior debug village      # the connected POI village around the player
 /villagerssavior debug list 2       # page 2 of the last result
+/villagerssavior debug favor set 60      # set favour to 60 for villagers within 64 blocks
+/villagerssavior debug favor set 60 5000 # ... within 5000 blocks, or any radius up to the world border
+/villagerssavior debug favor add -25     # adjust favour, positive or negative
+/villagerssavior debug favor clear 2000  # remove this player's gossip from those villagers
 ```
+
+`favor` edits the caller's **real vanilla gossip** (no parallel reputation) and is not capped by the 256 block
+scan radius: the radius may go up to the world border, and only villagers in loaded, entity-ticking chunks can
+be edited. Vanilla gossip caps mean the exactly representable range is +125 to -700; larger requests clamp and
+the reply reports the value actually reached.
 
 The summary includes count, sum, mean, median, minimum, maximum and relationship distribution.
 Details list UUID, coordinates, profession and reputation, sorted from lowest reputation with ten villagers
@@ -68,6 +77,15 @@ clearly labeled. Reads are asynchronous and do not load or generate world chunks
 than 4096 candidate chunks) and storage failures are rejected.
 
 ## Mechanics
+
+### Nitwits
+
+A nitwit has no standing of its own: `Villager#getPlayerReputation` always returns 0 for one, so trading, the
+HUD and iron-golem checks never see it as a reputation holder, while its real gossip stays stored underneath.
+When a nitwit and an ordinary villager successfully chat (vanilla's own 60 second villager chat cooldown),
+the nitwit passes one good word on: one random player it holds a personal positive impression of
+(MINOR_POSITIVE or MAJOR_POSITIVE only — trading gossip deliberately does not count) gains MINOR_POSITIVE +1
+with that ordinary villager, at most three times per player, receiver and in-game day.
 
 Profession services (farmer travel rations, cooking, fletching, repairs, information) and the reputation
 automatic villager panel are documented in [Villagers_Savior_professions.md](Villagers_Savior_professions.md) (Chinese).

@@ -1,4 +1,8 @@
 {
+  "debug.villagers_savior.favor_none": "No villager within %s blocks",
+  "debug.villagers_savior.favor_add": "Favor %s requested for %s villagers within %s blocks; applied %s..%s (now %s..%s)",
+  "debug.villagers_savior.favor_set": "Favor set to %s for %s villagers within %s blocks (now %s..%s, requested %s)",
+  "debug.villagers_savior.favor_clear": "Cleared this player's gossip from %s villagers within %s blocks",
   "debug.villagers_savior.scanning": "Reading villager data from %s chunks…",
   "debug.villagers_savior.running": "A scan is running or was requested too recently; please wait.",
   "debug.villagers_savior.no_village": "No nearby village, or its connected POI region exceeds the scan limit.",
@@ -19,6 +23,7 @@
   "key.category.villagers_savior.requests": "Villagers' Savior",
   "key.villagers_savior.request_food": "Request food / service (hold + interact)",
   "hud.villagers_savior.title": "%s · %s (level %s)",
+  "hud.villagers_savior.title_profession": "%s (level %s)",
   "hud.villagers_savior.nitwit_items": "Will hand over all collected items: %s (no reputation requirement or cooldown)",
   "hud.villagers_savior.nitwit_empty": "No collected items to hand over",
   "message.villagers_savior.nitwit_items": "The nitwit handed over all collected items.",

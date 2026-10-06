@@ -52,6 +52,10 @@ Nitwit（傻子村民）可以拾取放得下的任意地面物品，尊重拾�
 /villagerssavior debug nearby 128   # 自定半径，允许 1～256 格
 /villagerssavior debug village      # 扫描玩家所在 POI 连通村庄
 /villagerssavior debug list 2       # 查看最近一次扫描的第 2 页
+/villagerssavior debug favor set 60      # 把 64 格内所有村民对玩家的好感设为 60
+/villagerssavior debug favor set 60 5000 # 半径 5000 格；上限是世界边界，可用任意距离
+/villagerssavior debug favor add -25     # 在现有好感上增减（正负均可）
+/villagerssavior debug favor clear 2000  # 清除玩家在这些村民处的全部 Gossip
 ```
 
 结果包含村民数量、好感度总和、平均值、中位数、最低/最高值和关系档位分布。
@@ -63,7 +67,19 @@ Nitwit（傻子村民）可以拾取放得下的任意地面物品，尊重拾�
 明细中的“存档快照”使用该村民最后保存的职业和 Gossip，无法反映尚未保存的变化。
 扫描异步读取，单次最多检查 4096 个候选区块，超限或读取失败会报告失败。
 
+`favor` 写入的是执行命令玩家的**真实原版 Gossip**（没有平行好感度），并且**不受扫描 256 格上限限制**：
+半径上限是世界边界；实际能改到的只有**已加载且处于实体 ticking 等级**的村民。原版 Gossip 的权重与上限
+决定了可精确表示的区间为 **+125 ～ −700**，超出会截断，回执里报告**实际达到**的数值。
+
 ## 机制
+
+### 傻子
+
+傻子本人**没有立场**：`Villager#getPlayerReputation` 对傻子恒定返回 0，因此交易、HUD、铁傀儡判断都不会把
+傻子当作好感持有者；而它底层的 Gossip 照常保存。当傻子与普通村民**成功交流**时（沿用原版 60 秒交流冷却），
+傻子会替一位它**有正面个人印象**的玩家说一句好话——只看 `MINOR_POSITIVE` 与 `MAJOR_POSITIVE`，
+**刻意不计入 TRADING**（否则只会买东西的玩家也能被吹成好人）；被说好话的**普通村民**对该玩家
+`MINOR_POSITIVE +1`，每个「玩家 + 接收村民」每游戏日最多 **+3**。
 
 职业交互（农夫旅途口粮、烹饪、制箭、修复、信息服务）与自动信息面板见
 [职业交互与村民信息面板文档](Villagers_Savior_professions.md)。

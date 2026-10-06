@@ -30,6 +30,17 @@ public final class VillagerInspection {
         }
         return new VillagerDetails(ReputationDebug.inspect(villager, player), lines);
     }
+    /**
+     * HUD title for one villager. An unnamed villager's display name <em>is</em> its profession
+     * ({@link Villager#getTypeName()} backs it), so printing both produced "Nitwit · Nitwit"; the name is
+     * only shown when the player actually gave the villager a custom name.
+     */
+    public static Component title(Villager villager, String professionPath, int level) {
+        Component profession = Component.translatable("entity.minecraft.villager." + professionPath);
+        return villager.hasCustomName()
+            ? text("title", villager.getDisplayName(), profession, level)
+            : text("title_profession", profession, level);
+    }
     public static Component text(String key, Object... args) {
         return Component.translatable("hud.villagers_savior." + key, args);
     }
