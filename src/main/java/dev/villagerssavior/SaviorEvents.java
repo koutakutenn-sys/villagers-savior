@@ -1,6 +1,12 @@
 package dev.villagerssavior;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.PoiTypeTags;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
@@ -38,6 +44,15 @@ public final class SaviorEvents {
             if (!stack.isEmpty()) Block.popResource(level, villager.blockPosition(), stack);
         }
         inventory.clearContent();
+    }
+    /**
+     * True for a vanilla leader zombie: the spawn-time leader bonus on its reinforcement chance attribute.
+     * Vanilla rolls {@code Zombie.ZOMBIE_LEADER_CHANCE} (0.05) at spawn and adds the
+     * {@code minecraft:leader_zombie_bonus} modifier to that attribute and to max health.
+     */
+    public static boolean isLeader(Zombie zombie) {
+        var attribute = zombie.getAttribute(Attributes.SPAWN_REINFORCEMENTS_CHANCE);
+        return attribute != null && attribute.hasModifier(Identifier.withDefaultNamespace("leader_zombie_bonus"));
     }
     public static int threat(Entity entity) {
         var type = entity.getType();
@@ -90,9 +105,34 @@ public final class SaviorEvents {
                 if (n > 5) SaviorGossip.add(v, id, GossipType.MAJOR_NEGATIVE, 1);
             }
         } else if (entity instanceof Enemy) {
-            for (var v : villagers(level, entity.position(), 24)) {
-                int grant = state.dailyGrant("kill", id, v.getUUID(), now, threat(entity), 5);
-                SaviorGossip.add(v, id, GossipType.MINOR_POSITIVE, grant);
+            int weight = threat(entity);
+            Vec3 death = entity.position();
+            var nearest = level.getPoiManager().findClosest(t -> t.is(PoiTypeTags.VILLAGE), entity.blockPosition(),
+                256, PoiManager.Occupancy.ANY);
+            var positions = nearest.flatMap(poi -> Villages.positions(level, poi));
+            // A kill inside a village's reach (centre within 128 blocks) is heard by the whole village, and the
+            // villagers right next to it hear it twice as strongly. Outside every village the 24 block sphere
+            // still applies, so wilderness kills keep working exactly as before.
+            if (positions.flatMap(Villages::center).map(center -> center.distanceToSqr(death) <= 128.0 * 128.0).orElse(false)) {
+                var village = positions.orElseThrow();
+                for (var v : Villages.residents(level, village, 32)) {
+                    if (!Villages.member(level, village, v.blockPosition())) continue;
+                    int applied = death.distanceToSqr(v.position()) <= 12.0 * 12.0 ? weight * 2 : weight;
+                    int grant = state.dailyGrant("kill", id, v.getUUID(), now, applied, 5);
+                    SaviorGossip.add(v, id, GossipType.MINOR_POSITIVE, grant);
+                }
+                // A leader zombie killed inside the village counts as repelling one raid for its killer: the
+                // very same reward path a raid victory uses (villagers within 64 of the village centre gain
+                // MAJOR_POSITIVE 2, once per player and village per week). Nothing here touches vanilla raid
+                // code, so no Hero of the Village is ever granted.
+                if (entity instanceof Zombie zombie && isLeader(zombie)) {
+                    Villages.center(village).ifPresent(center -> raidWon(level, BlockPos.containing(center), Set.of(id)));
+                }
+            } else {
+                for (var v : villagers(level, death, 24)) {
+                    int grant = state.dailyGrant("kill", id, v.getUUID(), now, weight, 5);
+                    SaviorGossip.add(v, id, GossipType.MINOR_POSITIVE, grant);
+                }
             }
         }
     }

@@ -106,9 +106,13 @@ The limit remains per villager, so adding workers can still scale total producti
   `MINOR_NEGATIVE +10–20` (one inclusive random roll per death). Witnessing is not required for this extra
   penalty; other villages and unloaded residents are unaffected. Player-owned projectiles count, pets and
   environmental deaths do not. If no village is recognized, only vanilla penalties apply.
-- **Killing hostile mobs**: every villager within 24 blocks of the death position gains `MINOR_POSITIVE` by
-  threat weight — ordinary hostile mobs 1; creepers, endermen, evokers, vindicators and piglin brutes 2;
-  ravagers, wardens, withers and the ender dragon 3. Each player + villager pair is capped at 5 points per day.
+- **Killing hostile mobs**: a kill inside 128 blocks of a village centre (the connected POI bounding-box
+- **Killing a zombie leader**: defeating a vanilla leader zombie (about 5% of natural spawns, carrying the `leader_zombie_bonus` attribute modifier) inside 128 blocks of a village centre counts as repelling one raid — villagers within 64 blocks of the village centre gain `MAJOR_POSITIVE +2`, once per player and village per **seven in-game days** on the same weekly ledger as real raids, and **no Hero of the Village** is granted. The kill still pays the ordinary mob-kill reputation.
+  centre, with membership decided by the nearest POI within 64 blocks) is heard by that whole village, and
+  villagers within 12 blocks of the death position gain twice the weight. Kills outside every village keep
+  the old 24 block sphere. Threat weight — ordinary hostile mobs 1; creepers, endermen, evokers, vindicators
+  and piglin brutes 2; ravagers, wardens, withers and the ender dragon 3. Each player + villager pair is
+  still capped at 5 points per day, doubling included.
 - **Repairing iron golems**: only counts when the golem **actually regains health**; every villager within
   32 blocks gains +1, capped at 3 points per day for each player + villager pair.
 - **Building iron golems**: the player who places the carved pumpkin / jack o'lantern that creates an iron

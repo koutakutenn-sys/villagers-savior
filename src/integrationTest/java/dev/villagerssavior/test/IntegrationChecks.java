@@ -6,6 +6,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.core.*;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
@@ -16,6 +17,8 @@ import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.ai.attributes.*;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.ai.gossip.*;
 import net.minecraft.world.entity.ai.village.poi.*;
@@ -53,6 +56,11 @@ public final class IntegrationChecks {
             level.getChunk(0,0); level.getChunk(1,0); level.getChunk(2,0);
             var player = player(server, level);
             player.snapTo(1, 4, 0);
+            // The 24 block fallback only applies outside every village, so clear stray village POIs near the
+            // origin first (later suites build their own fixtures when they need one). Keeps the sphere
+            // boundary assertions below deterministic even when the test world was reused.
+            var pois = level.getPoiManager();
+            for (int x = -320; x <= 320; x += 16) for (int z = -320; z <= 320; z += 16) pois.remove(new BlockPos(x, 4, z));
             var v = villager(level,0,4,0);
             var edge = villager(level,24,4,0);
             var outside = villager(level,24.1,4,0);
@@ -67,6 +75,70 @@ public final class IntegrationChecks {
             check(value(v,player,GossipType.MINOR_POSITIVE)==5,"kill awards clip to five per pair/day");
             var env = new Zombie(level); env.snapTo(0,4,0); env.die(level.damageSources().lava());
             check(value(v,player,GossipType.MINOR_POSITIVE)==5,"environment kill gives no player credit");
+            // Village scope: a kill inside 128 blocks of the village centre (the connected POI bounding-box
+            // centre) is heard by the whole village, and villagers within 12 blocks of the death position hear
+            // it twice as strongly, all under the same five point daily cap.
+            level.getChunk(0, 1); level.getChunk(0, 2);
+            var homePoi = level.registryAccess().lookupOrThrow(Registries.POINT_OF_INTEREST_TYPE).getOrThrow(PoiTypes.HOME);
+            pois.add(new BlockPos(0, 4, 0), homePoi);
+            pois.add(new BlockPos(16, 4, 0), homePoi);
+            pois.tick(() -> true);
+            var close = villager(level, 8, 4, 0);
+            var sameVillage = villager(level, 8, 4, 20);
+            var farMember = villager(level, 8, 4, 30);
+            var beyondMargin = villager(level, 8, 4, 40);
+            var inside = new Zombie(level); inside.snapTo(8, 4, 0); inside.die(damage);
+            check(value(close,player,GossipType.MINOR_POSITIVE)==2,"villagers within 12 blocks of the kill get double weight");
+            check(value(sameVillage,player,GossipType.MINOR_POSITIVE)==1,"the whole village hears a kill inside its centre radius");
+            check(value(farMember,player,GossipType.MINOR_POSITIVE)==1,"village members beyond the old 24 block sphere still count");
+            // Coverage note: the villager outside the 32 block margin is also outside this harness's entity
+            // visible region (40 blocks from spawn cannot be queried even with a 64 block margin), so that
+            // assertion is a regression guard rather than a discriminating control. The margin itself is the
+            // same shared rule the population supply uses.
+            var villagePositions = Villages.positions(level, new BlockPos(8, 4, 0)).orElseThrow();
+            check(Villages.residents(level, villagePositions, 32).contains(farMember),
+                "the reward query really reaches the far village member");
+            check(value(beyondMargin,player,GossipType.MINOR_POSITIVE)==0,"villagers outside the village bounding box plus margin are not rewarded");
+            for (int i=0;i<4;i++) { var extra = new Zombie(level); extra.snapTo(8,4,0); extra.die(damage); }
+            check(value(close,player,GossipType.MINOR_POSITIVE)==5 && value(farMember,player,GossipType.MINOR_POSITIVE)==5,
+                "village-wide kills still clip at five per pair and day");
+            var player2 = player(server, level); player2.snapTo(8, 4, 0);
+            var damage2 = level.damageSources().playerAttack(player2);
+            var close2 = villager(level, 8, 4, 0);
+            var sameVillage2 = villager(level, 8, 4, 20);
+            var ravager = new net.minecraft.world.entity.monster.Ravager(EntityTypes.RAVAGER, level);
+            ravager.snapTo(8, 4, 0); ravager.die(damage2);
+            check(value(close2,player2,GossipType.MINOR_POSITIVE)==5,"a doubled high threat weight stops at the daily cap");
+            check(value(sameVillage2,player2,GossipType.MINOR_POSITIVE)==3,"villagers beyond 12 blocks get the plain threat weight");
+            check(Villages.center(List.of(Long.toString(new BlockPos(0,4,0).asLong()), Long.toString(new BlockPos(16,4,0).asLong())))
+                .orElseThrow().equals(new Vec3(8.0, 4.0, 0.0)), "the village centre is the connected POI bounding-box centre");
+            // A leader zombie killed inside the village counts as one raid repelled for its killer: exactly the
+            // raid reward (villagers within 64 of the village centre gain MAJOR_POSITIVE 2), once per player and
+            // village per week, and never the Hero of the Village effect.
+            var leaderPlayer = player(server, level); leaderPlayer.snapTo(8, 4, 0);
+            var leaderDamage = level.damageSources().playerAttack(leaderPlayer);
+            var leader = new Zombie(level); leader.snapTo(8, 4, 0);
+            check(!SaviorEvents.isLeader(leader), "a plain zombie is not a leader");
+            leader.getAttribute(Attributes.SPAWN_REINFORCEMENTS_CHANCE).addOrReplacePermanentModifier(
+                new AttributeModifier(Identifier.withDefaultNamespace("leader_zombie_bonus"), 0.5, AttributeModifier.Operation.ADD_VALUE));
+            check(SaviorEvents.isLeader(leader), "the vanilla leader bonus marks a leader zombie");
+            leader.die(leaderDamage);
+            check(value(farMember, leaderPlayer, GossipType.MAJOR_POSITIVE) == 2,
+                "a leader kill inside the village grants the raid reward to the whole village");
+            check(!leaderPlayer.hasEffect(MobEffects.HERO_OF_THE_VILLAGE), "no hero of the village is granted");
+            var secondLeader = new Zombie(level); secondLeader.snapTo(8, 4, 0);
+            secondLeader.getAttribute(Attributes.SPAWN_REINFORCEMENTS_CHANCE).addOrReplacePermanentModifier(
+                new AttributeModifier(Identifier.withDefaultNamespace("leader_zombie_bonus"), 0.5, AttributeModifier.Operation.ADD_VALUE));
+            secondLeader.die(leaderDamage);
+            check(value(farMember, leaderPlayer, GossipType.MAJOR_POSITIVE) == 2,
+                "the raid ledger limits a leader kill to once per player and village per week");
+            var plain = new Zombie(level); plain.snapTo(8, 4, 0); plain.die(leaderDamage);
+            check(value(farMember, leaderPlayer, GossipType.MAJOR_POSITIVE) == 2, "a plain zombie never grants the raid reward");
+            // Equivalence control: an actual raid victory gives the same amount to the same kind of villager.
+            var raidPlayer = player(server, level); raidPlayer.snapTo(8, 4, 0);
+            var raidTarget = villager(level, 8, 4, 0);
+            SaviorEvents.raidWon(level, new BlockPos(8, 4, 0), Set.of(raidPlayer.getUUID()));
+            check(value(raidTarget, raidPlayer, GossipType.MAJOR_POSITIVE) == 2, "a real raid victory gives the same amount");
             check(SaviorEvents.threat(new IronGolem(EntityTypes.IRON_GOLEM,level))==1,"default threat weight");
             check(SaviorEvents.threat(new Creeper(EntityTypes.CREEPER,level))==2,"creeper threat weight");
             var ledger = new SaviorState(); UUID a=UUID.randomUUID(),b=UUID.randomUUID(),c=UUID.randomUUID();
@@ -226,6 +298,8 @@ public final class IntegrationChecks {
             PerformanceChecks.run(server, IntegrationChecks::check);
             FavorChecks.run(server, level, IntegrationChecks::check);
             NitwitRelayChecks.run(server, level, IntegrationChecks::check);
+            // 1.0.4 regression sweep: the pure rules also run headless through the Gradle `ruleChecks` task,
+            // and the production tables are swept over every profession here, where the item registry exists.
             pass=results.stream().noneMatch(r -> r.startsWith("FAIL"));
         } catch (Throwable failure) { results.add("FAIL " + failure); failure.printStackTrace(); }
         try {

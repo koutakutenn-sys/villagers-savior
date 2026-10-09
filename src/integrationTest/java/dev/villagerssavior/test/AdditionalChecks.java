@@ -28,7 +28,9 @@ public final class AdditionalChecks {
         var level=server.overworld(); var at=new BlockPos(1024,4,0);
         for(int x=62;x<=68;x++)for(int z=-2;z<=2;z++)level.getChunk(x,z);
         var p=player(server,level);p.snapTo(1025,4,0);
-        var v=new Villager(EntityTypes.VILLAGER,level);v.snapTo(1024,4,0);level.addFreshEntity(v);
+        // 20 blocks away: still inside every reward scope (village bounds and the 24 block fallback) but
+        // outside the 12 block doubling radius, so these checks assert attribution, not the new multiplier.
+        var v=new Villager(EntityTypes.VILLAGER,level);v.snapTo(1044,4,0);level.addFreshEntity(v);
         var home=level.registryAccess().lookupOrThrow(Registries.POINT_OF_INTEREST_TYPE).getOrThrow(PoiTypes.HOME);
         level.getPoiManager().add(at,home);level.getPoiManager().take(t->t.equals(home),(t,pos)->pos.equals(at),at,1);level.getPoiManager().tick(()->true);
         var z=new Zombie(level);z.snapTo(1024,4,0);z.setHealth(1);z.hurtServer(level,level.damageSources().playerAttack(p),2);

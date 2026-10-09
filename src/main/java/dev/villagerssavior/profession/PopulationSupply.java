@@ -5,7 +5,6 @@ import dev.villagerssavior.Villages;
 import dev.villagerssavior.TickCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -15,7 +14,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
 import java.util.Collection;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -88,21 +86,7 @@ public final class PopulationSupply {
     }
     /** Village population: living villagers around the village's connected POI cluster. */
     private static int countPopulation(ServerLevel level, Collection<String> positions) {
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        for (String encoded : positions) {
-            BlockPos pos = BlockPos.of(Long.parseLong(encoded));
-            minX = Math.min(minX, pos.getX());
-            maxX = Math.max(maxX, pos.getX());
-            minY = Math.min(minY, pos.getY());
-            maxY = Math.max(maxY, pos.getY());
-            minZ = Math.min(minZ, pos.getZ());
-            maxZ = Math.max(maxZ, pos.getZ());
-        }
-        AABB area = new AABB(
-            minX - VILLAGE_MARGIN, Math.max(level.getMinY(), minY - VILLAGE_MARGIN), minZ - VILLAGE_MARGIN,
-            maxX + 1 + VILLAGE_MARGIN, Math.min(level.getMaxY() + 1, maxY + 1 + VILLAGE_MARGIN), maxZ + 1 + VILLAGE_MARGIN);
-        return level.getEntitiesOfClass(Villager.class, area, Entity::isAlive).size();
+        return Villages.residents(level, positions, VILLAGE_MARGIN).size();
     }
     /** Live stock first; empty farmers share the first nearby crop scan in their village for 200 ticks. */
     public static int chooseCrop(ServerLevel level, Villager villager, Collection<String> positions, long now) {
