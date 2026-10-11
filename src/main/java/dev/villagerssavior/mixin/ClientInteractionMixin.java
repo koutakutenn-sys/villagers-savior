@@ -17,8 +17,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class ClientInteractionMixin {
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void savior$request(Player player, Entity entity, EntityHitResult hit, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
-        if (entity instanceof Villager && player.getItemInHand(hand).isEmpty() && SaviorClient.requesting()) {
-            ClientPlayNetworking.send(new FoodRequest(entity.getId(), hand));
+        // V is the mod's request key: with an item it asks for the held-item service (repairs), and while
+        // sneaking it asks for the profession service directly instead of the generic food gift.
+        if (entity instanceof Villager && SaviorClient.requesting()) {
+            ClientPlayNetworking.send(new FoodRequest(entity.getId(), hand, player.isShiftKeyDown()));
             cir.setReturnValue(InteractionResult.SUCCESS);
         }
     }

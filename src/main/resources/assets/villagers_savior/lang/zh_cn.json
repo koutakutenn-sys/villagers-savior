@@ -89,6 +89,7 @@
   "message.villagers_savior.service_repair": "村民帮你修复了装备。",
   "message.villagers_savior.service_librarian": "图书管理员告诉你这位村民对你的看法。",
   "message.villagers_savior.service_cartographer": "制图师为你指了路。",
+  "message.villagers_savior.service_unavailable": "这个村民现在无法提供该服务。",
   "message.villagers_savior.librarian_report": "图书管理员说，这位村民把你视为%s（声望 %s）。",
   "message.villagers_savior.standing.wary": "警惕的对象",
   "message.villagers_savior.standing.neutral": "陌生人",

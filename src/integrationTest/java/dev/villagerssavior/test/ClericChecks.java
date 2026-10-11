@@ -77,7 +77,7 @@ public final class ClericChecks {
 
         var worker = cleric(level, 12288); var requester = player(server, level);
         requester.snapTo(12289, 4, 0); requester.getInventory().clearContent();
-        FoodGifts.request(requester, new FoodRequest(worker.getId(), InteractionHand.MAIN_HAND));
+        FoodGifts.request(requester, new FoodRequest(worker.getId(), InteractionHand.MAIN_HAND, false));
         var village = Villages.identify(level, worker.blockPosition()).orElseThrow();
         check.accept(!requester.hasEffect(MobEffects.REGENERATION)
             && state.ready("service_cleric", requester.getUUID(), village, now, 12000),
@@ -96,7 +96,7 @@ public final class ClericChecks {
         check.accept(ServiceItems.count(worker.getInventory(), Items.REDSTONE) == 0,
             "cleric: repeat same-day restock cannot regenerate a spent charge beyond daily cap");
         var packetPlayer = player(server, level); packetPlayer.snapTo(12289, 4, 0);
-        FoodGifts.request(packetPlayer, new FoodRequest(worker.getId(), InteractionHand.MAIN_HAND));
+        FoodGifts.request(packetPlayer, new FoodRequest(worker.getId(), InteractionHand.MAIN_HAND, false));
         check.accept(packetPlayer.hasEffect(MobEffects.REGENERATION)
             && ServiceItems.count(worker.getInventory(), Items.GLOWSTONE_DUST) == 0,
             "cleric: actual neutral-player request path reaches normal blessing");

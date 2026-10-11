@@ -1,5 +1,6 @@
 package dev.villagerssavior;
 
+import dev.villagerssavior.profession.ProfessionInteractions;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -15,18 +16,39 @@ public final class FoodGifts {
     private FoodGifts() {}
     public static void request(ServerPlayer player, FoodRequest request) {
         ServerLevel level = (ServerLevel) player.level();
-        if (!player.isAlive() || player.isSpectator() || !player.getItemInHand(request.hand()).isEmpty()) return;
+        if (!player.isAlive() || player.isSpectator()) return;
+        ItemStack held = player.getItemInHand(request.hand());
         if (!(level.getEntity(request.entityId()) instanceof Villager v) || !v.isAlive() || v.isSleeping()
             || !player.isWithinEntityInteractionRange(v, 0) || !player.hasLineOfSight(v)) return;
         if (v.getTradingPlayer() != null && v.getTradingPlayer() != player) return;
         if (NitwitInventory.isNitwit(v)) {
-            player.sendSystemMessage(Component.translatable("message.villagers_savior." + NitwitInventory.giveAll(v, player)), true);
+            if (held.isEmpty())
+                player.sendSystemMessage(Component.translatable("message.villagers_savior."
+                    + NitwitInventory.giveAll(v, player)), true);
             return;
         }
         var access = (RequestThrottle) player;
         long now = level.getGameTime();
         // One second per player: bound replay/spam without imposing an extra in-game day limit.
         if (!access.savior$acceptRequest(now)) return;
+        // Sneak + V asks for the profession service itself and never feeds the player.
+        if (request.service()) {
+            String forced = (held.isEmpty() ? java.util.Optional.<String>empty()
+                    : ProfessionInteractions.serveHeld(level, v, player, held))
+                .or(() -> ProfessionInteractions.serve(v, player))
+                .orElse("service_unavailable");
+            player.sendSystemMessage(Component.translatable("message.villagers_savior." + forced), true);
+            return;
+        }
+        // A held item is offered to the villager's held-item service first, so repairs work without the
+        // player having to empty their hands; anything else falls back to the ordinary flow.
+        if (!held.isEmpty()) {
+            var served = ProfessionInteractions.serveHeld(level, v, player, held);
+            if (served.isPresent()) {
+                player.sendSystemMessage(Component.translatable("message.villagers_savior." + served.get()), true);
+                return;
+            }
+        }
         String key = give(v, player, request.hand());
         // The villager always tries to feed a hungry player first; profession services are the extra system.
         if ("full".equals(key) || "none".equals(key))

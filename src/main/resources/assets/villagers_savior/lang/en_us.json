@@ -89,6 +89,7 @@
   "message.villagers_savior.service_repair": "The villager repairs your equipment.",
   "message.villagers_savior.service_librarian": "The librarian tells you how this villager regards you.",
   "message.villagers_savior.service_cartographer": "The cartographer points the way.",
+  "message.villagers_savior.service_unavailable": "This villager cannot offer that service right now.",
   "message.villagers_savior.librarian_report": "The librarian says this villager regards you as %s (reputation %s).",
   "message.villagers_savior.standing.wary": "wary",
   "message.villagers_savior.standing.neutral": "a stranger",

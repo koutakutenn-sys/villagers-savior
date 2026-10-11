@@ -61,7 +61,7 @@ public final class ClientAudit implements ClientModInitializer {
                     mc.gui.setScreen(null);
                     mc.gameMode.useItemOn(mc.player,InteractionHand.MAIN_HAND,new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(new net.minecraft.core.BlockPos(3,6,1)),net.minecraft.core.Direction.WEST,new net.minecraft.core.BlockPos(3,6,1),false));
                 }
-                else if(stage==8){ClientPlayNetworking.send(new FoodRequest(entity,InteractionHand.MAIN_HAND));}
+                else if(stage==8){ClientPlayNetworking.send(new FoodRequest(entity, InteractionHand.MAIN_HAND, false));}
                 else {
                     if(stage==0){SaviorClient.requestFood.setKey(com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM.getOrCreate(71));net.minecraft.client.KeyMapping.resetMapping();check(KeyMappingHelper.getBoundKeyOf(SaviorClient.requestFood).getValue()==71,"request key can rebind to G");}
                     interact(mc,stage!=6);

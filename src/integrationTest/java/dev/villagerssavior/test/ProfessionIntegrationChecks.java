@@ -2,6 +2,8 @@ package dev.villagerssavior.test;
 
 import com.mojang.authlib.GameProfile;
 import dev.villagerssavior.SaviorGossip;
+import dev.villagerssavior.FoodGifts;
+import dev.villagerssavior.FoodRequest;
 import dev.villagerssavior.SaviorState;
 import dev.villagerssavior.Villages;
 import dev.villagerssavior.debug.ReputationDebug;
@@ -22,6 +24,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
@@ -153,7 +156,25 @@ public final class ProfessionIntegrationChecks {
         var hungry = player();
         hungry.getFoodData().setFoodLevel(10);
         trusted(poorFarmer, hungry, 100);
-        check(ProfessionInteractions.serve(poorFarmer, hungry).isEmpty(), "rations are only for players who are full");
+        check(ProfessionInteractions.serve(poorFarmer, hungry).orElse("none").equals("ration"),
+            "a forced service reaches the rations while the player is hungry");
+        // Plain V still feeds a hungry player first; only a forced request (sneak + V) spends the ration cooldown.
+        var plain = player(); plain.getFoodData().setFoodLevel(10);
+        var plainFarmer = villager(VillagerProfession.FARMER, villagePos.getX() + 15, villagePos.getZ());
+        plainFarmer.getInventory().setItem(0, new ItemStack(Items.POTATO, 40));
+        trusted(plainFarmer, plain, 100);
+        plain.snapTo(villagePos.getX() + 15, 4, villagePos.getZ() + 1);
+        FoodGifts.request(plain, new FoodRequest(plainFarmer.getId(), InteractionHand.MAIN_HAND, false));
+        check(SaviorState.get(level).ready("ration", plain.getUUID(), village, level.getGameTime()),
+            "an ordinary request does not spend the ration cooldown");
+        var forced = player(); forced.getFoodData().setFoodLevel(10);
+        var forcedFarmer = villager(VillagerProfession.FARMER, villagePos.getX() + 16, villagePos.getZ());
+        forcedFarmer.getInventory().setItem(0, new ItemStack(Items.POTATO, 40));
+        trusted(forcedFarmer, forced, 100);
+        forced.snapTo(villagePos.getX() + 16, 4, villagePos.getZ() + 1);
+        FoodGifts.request(forced, new FoodRequest(forcedFarmer.getId(), InteractionHand.MAIN_HAND, true));
+        check(!SaviorState.get(level).ready("ration", forced.getUUID(), village, level.getGameTime()),
+            "a forced request spends the ration cooldown while hungry");
         int budget = Rations.budget(20, 25);
         check(budget == 3, "ration budget for twenty surplus at 25 reputation is three");
     }
@@ -328,6 +349,30 @@ public final class ProfessionIntegrationChecks {
         var brokeSmith = villager(VillagerProfession.TOOLSMITH, villagePos.getX() + 20, villagePos.getZ());
         trusted(brokeSmith, noMaterial, 25);
         check(ProfessionInteractions.serve(brokeSmith, noMaterial).isEmpty(), "repairs need the villager's own materials");
+        // The request key no longer needs empty hands: the held item is the exact repair target, even while hungry.
+        var holder = player(); holder.getFoodData().setFoodLevel(10);
+        var smith2 = villager(VillagerProfession.WEAPONSMITH, villagePos.getX() + 21, villagePos.getZ());
+        smith2.getInventory().setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+        trusted(smith2, holder, 25);
+        ItemStack heldAxe = new ItemStack(Items.IRON_AXE); heldAxe.setDamageValue(50);
+        ItemStack bagAxe = new ItemStack(Items.IRON_AXE); bagAxe.setDamageValue(200);
+        holder.setItemInHand(InteractionHand.MAIN_HAND, heldAxe);
+        holder.getInventory().setItem(9, bagAxe);
+        holder.snapTo(smith2.getX(), 4, smith2.getZ() + 1);
+        FoodGifts.request(holder, new FoodRequest(smith2.getId(), InteractionHand.MAIN_HAND, false));
+        check(heldAxe.getDamageValue() == 0, "the held weapon is repaired");
+        check(bagAxe.getDamageValue() == 200, "a more damaged item in the bag is left alone");
+        check(count(smith2.getInventory(), Items.IRON_INGOT) == 3, "the weaponsmith paid one of its own ingots");
+        // A forced service request repairs the held item too.
+        var forcedHolder = player();
+        var smith3 = villager(VillagerProfession.WEAPONSMITH, villagePos.getX() + 22, villagePos.getZ());
+        smith3.getInventory().setItem(0, new ItemStack(Items.IRON_INGOT, 4));
+        trusted(smith3, forcedHolder, 25);
+        ItemStack forcedAxe = new ItemStack(Items.IRON_AXE); forcedAxe.setDamageValue(50);
+        forcedHolder.setItemInHand(InteractionHand.MAIN_HAND, forcedAxe);
+        forcedHolder.snapTo(smith3.getX(), 4, smith3.getZ() + 1);
+        FoodGifts.request(forcedHolder, new FoodRequest(smith3.getId(), InteractionHand.MAIN_HAND, true));
+        check(forcedAxe.getDamageValue() == 0, "a forced service request repairs the held item");
     }
     private void repairPriorityTests() {
         record RepairCase(ResourceKey<VillagerProfession> profession, Item equipment, Item material) {}

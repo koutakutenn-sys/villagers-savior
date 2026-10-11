@@ -24,6 +24,15 @@ final class RepairService {
     private RepairService() {}
     static Optional<String> serve(ServerLevel level, Villager villager, ServerPlayer player, long now,
                                   String event, Predicate<ItemStack> eligible) {
+        return repair(level, villager, player, now, event, eligible, null);
+    }
+    /** Repairs exactly the stack the player asked with (the held item); the same rules otherwise. */
+    static Optional<String> serveHeld(ServerLevel level, Villager villager, ServerPlayer player, long now,
+                                      String event, Predicate<ItemStack> eligible, ItemStack held) {
+        return repair(level, villager, player, now, event, eligible, held);
+    }
+    private static Optional<String> repair(ServerLevel level, Villager villager, ServerPlayer player, long now,
+                                           String event, Predicate<ItemStack> eligible, ItemStack held) {
         int reputation = ProfessionInteractions.reputation(villager, player);
         if (reputation < ProfessionInteractions.MIN_REPUTATION) return Optional.empty();
         var village = ProfessionInteractions.village(level, villager);
@@ -31,7 +40,8 @@ final class RepairService {
         var state = SaviorState.get(level);
         if (!ProfessionInteractions.ready(state, event, player, village.get(), now, ProfessionInteractions.SERVICE_WINDOW))
             return Optional.empty();
-        var found = Repairs.find(player.getInventory(), villager.getInventory(), eligible);
+        var found = held == null ? Repairs.find(player.getInventory(), villager.getInventory(), eligible)
+                                 : Repairs.findFor(held, villager.getInventory(), eligible);
         if (found.isEmpty()) return Optional.empty();
         var job = found.get();
         ItemStack target = job.target();

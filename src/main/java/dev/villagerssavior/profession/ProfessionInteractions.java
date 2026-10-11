@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
+import net.minecraft.world.item.ItemStack;
 import java.util.*;
 import java.util.Optional;
 
@@ -50,6 +51,13 @@ public final class ProfessionInteractions {
         return villager.getVillagerData().profession().unwrapKey()
             .map(SERVICES::get)
             .flatMap(service -> service.serve(level, villager, player, level.getGameTime()));
+    }
+    /** Offers the held-item service (repairs); empty for every profession that has none. */
+    public static Optional<String> serveHeld(ServerLevel level, Villager villager, ServerPlayer player, ItemStack target) {
+        if (!villager.isAlive() || villager.isSleeping()) return Optional.empty();
+        return villager.getVillagerData().profession().unwrapKey()
+            .map(SERVICES::get)
+            .flatMap(service -> service.serveHeld(level, villager, player, target, level.getGameTime()));
     }
     /** Effective reputation: the real vanilla value, capped at 100 for service strength. */
     static int reputation(Villager villager, ServerPlayer player) {

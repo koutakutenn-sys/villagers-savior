@@ -30,6 +30,24 @@ public final class Repairs {
      * Equal ratios keep the first eligible inventory slot.
      * The equipment belongs to the player; the repair material comes from the villager's own stock.
      */
+    /**
+     * The job for one specific stack the player is holding, if {@code materials} can pay to repair it.
+     * Nothing else in the player's inventory is considered, so a held item is always the exact target.
+     */
+    public static Optional<Job> findFor(ItemStack target, Container materials, Predicate<ItemStack> eligible) {
+        if (target.isEmpty() || !target.isDamageableItem() || target.getDamageValue() <= 0 || !eligible.test(target))
+            return Optional.empty();
+        Item material = null;
+        int available = 0;
+        for (int other = 0; other < materials.getContainerSize(); other++) {
+            ItemStack candidate = materials.getItem(other);
+            if (candidate.isEmpty() || !target.isValidRepairItem(candidate)) continue;
+            if (material == null) material = candidate.getItem();
+            if (candidate.is(material)) available += candidate.getCount();
+        }
+        if (material == null || available <= 0) return Optional.empty();
+        return Optional.of(new Job(-1, target, material, available));
+    }
     public static Optional<Job> find(Inventory targets, Container materials, Predicate<ItemStack> eligible) {
         Job best = null;
         for (int slot = 0; slot < targets.getContainerSize(); slot++) {

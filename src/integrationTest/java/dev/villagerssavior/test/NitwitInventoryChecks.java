@@ -109,13 +109,13 @@ public final class NitwitInventoryChecks {
             "nitwit inventory: HUD previews all items without ordinary food or reputation gates");
         check.accept(ServiceItems.count(nitwit.getInventory(), Items.BREAD) == 7, "nitwit inventory: HUD preview is read-only");
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.STICK));
-        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND));
+        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND, false));
         check.accept(ServiceItems.count(nitwit.getInventory(), Items.DIAMOND) == 4, "nitwit inventory: request still rejects nonempty hand");
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY); player.snapTo(8200, 4, 0);
-        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND));
+        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND, false));
         check.accept(ServiceItems.count(nitwit.getInventory(), Items.DIAMOND) == 4, "nitwit inventory: request still rejects distant player");
         player.snapTo(8193, 4, 0);
-        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND));
+        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND, false));
         check.accept(nitwit.getInventory().isEmpty(), "nitwit inventory: negative reputation and hunger zero still hand over every item");
         var gifts = gifts(level, player);
         check.accept(gifts.stream().mapToInt(item -> item.getItem().getCount()).sum() == 12
@@ -123,10 +123,10 @@ public final class NitwitInventoryChecks {
             "nitwit inventory: handover preserves exact counts and data components");
         check.accept(gifts.stream().allMatch(ItemEntity::hasPickUpDelay), "nitwit inventory: handover applies normal pickup delay");
         player.getFoodData().setFoodLevel(20); nitwit.getInventory().setItem(0, new ItemStack(Items.EMERALD, 2));
-        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND));
+        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND, false));
         check.accept(nitwit.getInventory().isEmpty() && gifts(level, player).stream().mapToInt(item -> item.getItem().getCount()).sum() == 14,
             "nitwit inventory: immediate second request while full has no cooldown or throttle");
-        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND));
+        FoodGifts.request(player, new FoodRequest(nitwit.getId(), InteractionHand.MAIN_HAND, false));
         check.accept(gifts(level, player).stream().mapToInt(item -> item.getItem().getCount()).sum() == 14,
             "nitwit inventory: repeated empty request cannot duplicate items");
         check.accept(HudInspectionChecks.has(VillagerInspection.inspect(nitwit, player), "nitwit_empty"),

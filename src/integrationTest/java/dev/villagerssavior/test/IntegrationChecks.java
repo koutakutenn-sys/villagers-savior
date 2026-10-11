@@ -20,6 +20,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.ai.attributes.*;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.entity.ai.gossip.*;
 import net.minecraft.world.entity.ai.village.poi.*;
 import net.minecraft.world.entity.raid.Raid;
@@ -238,11 +239,20 @@ public final class IntegrationChecks {
             player.getFoodData().setFoodLevel(10); v.getInventory().clearContent(); v.getInventory().setItem(0,new ItemStack(Items.POTATO,40));
             v.getGossips().clear(); int stock=v.getInventory().getItem(0).getCount();
             player.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.STICK));
-            FoodGifts.request(player,new FoodRequest(v.getId(),InteractionHand.MAIN_HAND));
-            check(v.getInventory().getItem(0).getCount()==stock,"server rejects nonempty hand");
+            FoodGifts.request(player,new FoodRequest(v.getId(),InteractionHand.MAIN_HAND,false));
+            check(v.getInventory().getItem(0).getCount()<stock,
+                "a held item without a held-item service still uses the ordinary flow");
+            v.getInventory().setItem(0,new ItemStack(Items.POTATO,40));
             player.setItemInHand(InteractionHand.MAIN_HAND,ItemStack.EMPTY); player.snapTo(1000,4,0);
-            FoodGifts.request(player,new FoodRequest(v.getId(),InteractionHand.MAIN_HAND));
-            check(v.getInventory().getItem(0).getCount()==stock,"server rejects distant target");
+            FoodGifts.request(player,new FoodRequest(v.getId(),InteractionHand.MAIN_HAND,false));
+            check(v.getInventory().getItem(0).getCount()==40,"server rejects distant target");
+            // A forced service (sneak + V) never feeds the player: a librarian answers while the food stays put.
+            var librarian=villager(level,7,4,0);
+            librarian.setVillagerData(librarian.getVillagerData().withProfession(level.registryAccess(),VillagerProfession.LIBRARIAN));
+            librarian.getInventory().setItem(0,new ItemStack(Items.POTATO,40));
+            var forcedService=player(server,level); forcedService.getFoodData().setFoodLevel(10); forcedService.snapTo(7,4,1);
+            FoodGifts.request(forcedService,new FoodRequest(librarian.getId(),InteractionHand.MAIN_HAND,true));
+            check(librarian.getInventory().getItem(0).getCount()==40,"a forced service request never feeds the player");
             check(((FoodGifts.RequestThrottle)player).savior$acceptRequest(1000),"first throttle request accepted");
             check(!((FoodGifts.RequestThrottle)player).savior$acceptRequest(1019),"request replay throttled");
             check(((FoodGifts.RequestThrottle)player).savior$acceptRequest(1020),"one second throttle boundary");

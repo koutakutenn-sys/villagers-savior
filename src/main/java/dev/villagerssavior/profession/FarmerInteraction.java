@@ -13,15 +13,17 @@ import java.util.Optional;
 import java.util.Arrays;
 
 /**
- * Farmer service: travel rations for trusted players who are not hungry. Everything comes from the farmer's
+ * Farmer service: travel rations for trusted players. Everything comes from the farmer's
  * real inventory, and real wheat is baked into real bread first (3 -> 1, the vanilla recipe).
  */
 public final class FarmerInteraction implements ProfessionInteraction {
     private static final int WHEAT_PER_BREAD = 3;
     private static final int MAX_BATCHES_PER_VISIT = 16;
     @Override public Optional<String> serve(ServerLevel level, Villager villager, ServerPlayer player, long now) {
-        // Rations are the "you are not hungry, but I trust you" case; hunger is handled by the generic gift.
-        if (player.getFoodData().getFoodLevel() < 20) return Optional.empty();
+        // Rations are the trusted-player case. They no longer require a full hunger bar: a forced service
+        // request (sneak + V) reaches them while hungry too, still bounded by the farmer's real surplus and
+        // the shared per player and village daily cooldown.
+
         int reputation = ProfessionInteractions.reputation(villager, player);
         if (reputation < Rations.MIN_REPUTATION) return Optional.empty();
         var village = ProfessionInteractions.village(level, villager);

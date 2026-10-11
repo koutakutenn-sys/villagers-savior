@@ -37,8 +37,6 @@ public final class ProfessionOffers {
         int reputation = ProfessionInteractions.reputation(villager, player);
         if (reputation < ProfessionInteractions.MIN_REPUTATION)
             return List.of(status(service, text("trust_required", ProfessionInteractions.MIN_REPUTATION)));
-        if (profession.equals("farmer") && player.getFoodData().getFoodLevel() < 20)
-            return List.of(status(service, text("ration_full_required")));
         if (positions.isEmpty()) return List.of(status(service, text("village_required")));
         var state = SaviorState.get(player.level());
         long now = player.level().getGameTime();
@@ -137,9 +135,20 @@ public final class ProfessionOffers {
         int quota = state.dailyRemaining(service + "_quota", player.getUUID(), villager.getUUID(), now,
             Repairs.dailyUnits(reputation));
         if (quota == 0) return text("quota");
+        // The action repairs the held item when there is one, so the preview looks at that stack first; a hand
+        // holding something the profession cannot repair is reported instead of previewing another item.
+        var held = player.getMainHandItem();
+        if (!held.isEmpty()) {
+            var heldJob = Repairs.findFor(held, villager.getInventory(), eligible);
+            if (heldJob.isEmpty()) return text("repair_materials");
+            return repairLine(heldJob.get(), quota, reputation);
+        }
         var found = Repairs.find(player.getInventory(), villager.getInventory(), eligible);
         if (found.isEmpty()) return text("repair_materials");
-        var job = found.get();
+        return repairLine(found.get(), quota, reputation);
+    }
+    /** One repair line for a chosen job, shared by the held-item and the automatic selection. */
+    private static Component repairLine(Repairs.Job job, int quota, int reputation) {
         int perUnit = Repairs.amountPerUnit(job.target().getMaxDamage(), reputation);
         int needed = (job.target().getDamageValue() + perUnit - 1) / perUnit;
         int units = Math.min(quota, Math.min(job.available(), needed));
