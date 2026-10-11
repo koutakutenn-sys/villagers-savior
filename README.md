@@ -140,6 +140,7 @@ The limit remains per villager, so adding workers can still scale total producti
 
 ### Requesting food
 
+- **Villagers help themselves**: every 30 seconds a cleric gives Regeneration I for ten seconds to all wounded villagers within 16 blocks (free, never itself, never the player), and villagers pick up the items their own profession works with (a cleric collects redstone, glowstone dust and lapis lazuli) up to that resource's hard cap.
 - The server validates that the entity is alive, the interaction distance, line of sight and
   any ongoing trade; ordinary food requests are limited to once every 20 ticks. Nitwit inventory handover bypasses this throttle.
 - Effective reputation is `R = min(real reputation, 100)` with no artificial lower bound. The villager keeps

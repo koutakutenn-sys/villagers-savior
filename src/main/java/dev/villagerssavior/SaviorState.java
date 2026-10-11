@@ -118,6 +118,15 @@ public final class SaviorState extends SavedData {
     public void cooldown(String event, UUID player, String village, long now) {
         cooldowns.put(event + ":" + player + ":" + resolve(village), now); setDirty();
     }
+    /** Ready when {@code window} ticks have elapsed since the last record for this villager alone. */
+    public boolean villagerReady(String event, UUID villager, long now, long window) {
+        Long last = cooldowns.get(event + ":" + villager);
+        return last == null || now - last >= window;
+    }
+    /** Books the event for one villager; used by behaviours that belong to the villager, not to a player. */
+    public void villagerCooldown(String event, UUID villager, long now) {
+        cooldowns.put(event + ":" + villager, now); setDirty();
+    }
     /** Read-only allowance; unlike dailyGrant this never books a repair or cleans history. */
     public int dailyRemaining(String event, UUID player, UUID villager, long now, int cap) {
         Daily old = daily.get(event + ":" + player + ":" + villager);

@@ -1,6 +1,8 @@
 package dev.villagerssavior.test;
 
 import dev.villagerssavior.*;
+import dev.villagerssavior.profession.ClericAid;
+import dev.villagerssavior.profession.ProfessionPickup;
 import dev.villagerssavior.test.mixin.RaidAccess;
 import com.mojang.authlib.GameProfile;
 import com.mojang.serialization.JsonOps;
@@ -231,6 +233,52 @@ public final class IntegrationChecks {
             edge.getInventory().clearContent(); edge.getInventory().setItem(0,new ItemStack(Items.POTATO));
             check(FoodGifts.give(edge,player,InteractionHand.MAIN_HAND).equals("none"),"changing villager cannot bypass emergency cooldown");
             freshPlayer.getFoodData().setFoodLevel(5);
+            // Cleric aid: every wounded villager within 16 blocks gains Regeneration I for ten seconds.
+            for (int cx = 1; cx <= 3; cx++) level.getChunk(cx, 0);
+            var cleric = villager(level, 30, 4, 0);
+            cleric.setVillagerData(cleric.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.CLERIC));
+            var hurtNear = villager(level, 32, 4, 0); hurtNear.setHealth(4.0F);
+            var hurtNear2 = villager(level, 34, 4, 0); hurtNear2.setHealth(6.0F);
+            var healthyNear = villager(level, 31, 4, 2);
+            var hurtFar = villager(level, 50, 4, 0); hurtFar.setHealth(4.0F);
+            ClericAid.aid(cleric, level);
+            var aid = hurtNear.getEffect(MobEffects.REGENERATION);
+            check(aid != null && aid.getDuration() == ClericAid.DURATION && aid.getAmplifier() == 0,
+                "the cleric gives Regeneration I for ten seconds");
+            check(hurtNear2.hasEffect(MobEffects.REGENERATION), "every wounded villager in the radius is helped");
+            check(!healthyNear.hasEffect(MobEffects.REGENERATION), "a villager at full health is left alone");
+            check(!hurtFar.hasEffect(MobEffects.REGENERATION), "a villager beyond the sixteen block radius is left alone");
+            var aidState = SaviorState.get(level);
+            check(!aidState.villagerReady(ClericAid.EVENT, cleric.getUUID(), level.getGameTime(), ClericAid.COOLDOWN),
+                "the aid books the cleric's own cooldown");
+            check(!aidState.villagerReady(ClericAid.EVENT, cleric.getUUID(),
+                    level.getGameTime() + ClericAid.COOLDOWN - 1, ClericAid.COOLDOWN)
+                && aidState.villagerReady(ClericAid.EVENT, cleric.getUUID(),
+                    level.getGameTime() + ClericAid.COOLDOWN, ClericAid.COOLDOWN),
+                "the cooldown is thirty seconds to the tick");
+            hurtNear.removeEffect(MobEffects.REGENERATION);
+            var secondCleric = villager(level, 36, 4, 0);
+            secondCleric.setVillagerData(secondCleric.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.CLERIC));
+            ClericAid.aid(secondCleric, level);
+            check(hurtNear.hasEffect(MobEffects.REGENERATION), "the cooldown is per cleric, not global");
+            var idleCleric = villager(level, 60, 4, 0);
+            idleCleric.setVillagerData(idleCleric.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.CLERIC));
+            ClericAid.aid(idleCleric, level);
+            check(aidState.villagerReady(ClericAid.EVENT, idleCleric.getUUID(), level.getGameTime(), ClericAid.COOLDOWN),
+                "an idle cleric never burns its cooldown");
+            var farmer = villager(level, 40, 4, 0);
+            var hurtByFarmer = villager(level, 42, 4, 0); hurtByFarmer.setHealth(4.0F);
+            ClericAid.aid(farmer, level);
+            check(!hurtByFarmer.hasEffect(MobEffects.REGENERATION), "a non-cleric never aids");
+            // Villagers accept the items their own profession works with, up to that resource's hard cap.
+            check(ProfessionPickup.accepts(cleric, new ItemStack(Items.REDSTONE)), "a cleric picks up redstone");
+            check(ProfessionPickup.accepts(cleric, new ItemStack(Items.LAPIS_LAZULI)), "a cleric picks up lapis lazuli");
+            check(ProfessionPickup.accepts(cleric, new ItemStack(Items.GLOWSTONE_DUST)), "a cleric picks up glowstone dust");
+            check(!ProfessionPickup.accepts(cleric, new ItemStack(Items.DIAMOND)), "a cleric ignores unrelated items");
+            check(!ProfessionPickup.accepts(farmer, new ItemStack(Items.REDSTONE)), "a farmer ignores a cleric's reagent");
+            cleric.getInventory().setItem(0, new ItemStack(Items.REDSTONE, 4));
+            check(!ProfessionPickup.accepts(cleric, new ItemStack(Items.REDSTONE)), "the hard cap stops a stocked cleric");
+            check(ProfessionPickup.accepts(cleric, new ItemStack(Items.GLOWSTONE_DUST)), "an unrelated cap does not block another reagent");
             check(FoodGifts.give(edge,freshPlayer,InteractionHand.MAIN_HAND).equals("emergency"),"other player can receive emergency independently");
             var state=SaviorState.get(level);
             var noFoodPlayer=player(server,level); noFoodPlayer.getFoodData().setFoodLevel(0); edge.getInventory().clearContent();
