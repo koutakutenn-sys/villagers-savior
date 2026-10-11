@@ -4,6 +4,8 @@ import dev.villagerssavior.SaviorState;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.item.ItemStack;
@@ -20,8 +22,40 @@ import net.minecraft.world.item.ItemStack;
 public final class ProfessionProduction {
     private ProfessionProduction() {}
     /** Called right after a villager restocked its workstation. */
+    /** Work-based production cadence: one attempt every two minutes. */
+    public static final long WORK_PERIOD = 2400L;
+    /** How close a villager has to be to its own job site to count as working. */
+    public static final double WORK_RANGE = 4.0;
+
+    /** A successful vanilla restock still produces, exactly as before. */
     public static void onRestock(Villager villager) {
         if (!(villager.level() instanceof ServerLevel level)) return;
+        work(villager, level);
+    }
+
+    /**
+     * Called from Villager#customServerAiStep: a villager that is awake, not trading and standing at its own
+     * job site works every {@link #WORK_PERIOD} ticks and gains the same materials a restock would give it,
+     * under the same per-restock, daily, target and hard limits.
+     */
+    public static void onWork(Villager villager, ServerLevel level) {
+        if (villager.isSleeping() || villager.getTradingPlayer() != null) return;
+        if ((level.getGameTime() + villager.getId()) % WORK_PERIOD != 0) return;
+        if (!atJobSite(villager, level)) return;
+        work(villager, level);
+    }
+
+    /** True when the villager stands within {@link #WORK_RANGE} of the job site its brain remembers. */
+    public static boolean atJobSite(Villager villager, ServerLevel level) {
+        var memory = villager.getBrain().getMemory(MemoryModuleType.JOB_SITE);
+        if (memory.isEmpty()) return false;
+        var site = memory.get();
+        if (!site.dimension().equals(level.dimension())) return false;
+        return villager.distanceToSqr(Vec3.atCenterOf(site.pos())) <= WORK_RANGE * WORK_RANGE;
+    }
+
+    /** The production itself, shared by restocking and working so both obey one set of limits. */
+    public static void work(Villager villager, ServerLevel level) {
         ResourceKey<VillagerProfession> key = villager.getVillagerData().profession().unwrapKey().orElse(null);
         if (key == null) return;
         long now = level.getGameTime();

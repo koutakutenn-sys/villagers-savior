@@ -140,6 +140,8 @@ The limit remains per villager, so adding workers can still scale total producti
 
 ### Requesting food
 
+- **Reputation ceiling and decay**: the +1 `MINOR_POSITIVE` entry may pass the vanilla ceiling of 25 within a day and is trimmed back to 25 by a daily check; decay itself stays vanilla (each type's own per-day amount), except `MINOR_POSITIVE`, which now decays once every three in-game days instead of every day.
+- **Villagers produce while they work**: an awake villager standing within four blocks of its own job site gains its profession's materials once every two minutes, sharing the daily cap with restocking.
 - **Villagers help themselves**: every 30 seconds a cleric gives Regeneration I for ten seconds to all wounded villagers within 16 blocks (free, never itself, never the player), and villagers pick up the items their own profession works with (a cleric collects redstone, glowstone dust and lapis lazuli) up to that resource's hard cap.
 - The server validates that the entity is alive, the interaction distance, line of sight and
   any ongoing trade; ordinary food requests are limited to once every 20 ticks. Nitwit inventory handover bypasses this throttle.

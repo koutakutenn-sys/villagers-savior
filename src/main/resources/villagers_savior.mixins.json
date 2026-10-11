@@ -20,7 +20,9 @@
     "InspectionEntityManagerAccess",
     "InspectionStorageAccess",
     "ClericAidMixin",
-    "ProfessionPickupMixin"
+    "VillagerWorkMixin",
+        "GossipDecayMixin",
+        "ProfessionPickupMixin"
   ],
   "client": [
     "ClientInteractionMixin"

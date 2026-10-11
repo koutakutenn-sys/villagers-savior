@@ -149,7 +149,13 @@ public final class PerformanceChecks {
         var first = new Villager(EntityTypes.VILLAGER, level); first.snapTo(origin.getX(), 4, origin.getZ());
         var second = new Villager(EntityTypes.VILLAGER, level); second.snapTo(origin.getX() + 10, 4, origin.getZ());
         var points = List.of(Long.toString(origin.asLong()));
-        long now = level.getGameTime();
+        // Deterministic on purpose: a far-future tick is always beyond any cache entry left by an earlier check in
+        // this server session, so the first call is guaranteed to scan and insert instead of reusing stale state.
+        long now = level.getGameTime() + 10_000L;
+        var cache = new TickCache<String, Integer>(200, 4);
+        check.accept(cache.get("k", 1000, () -> 1) == 1 && cache.get("k", 1199, () -> 2) == 1
+            && cache.get("k", 1200, () -> 3) == 3, "cache entries live exactly two hundred ticks from insertion");
+        check.accept(cache.get("k", 999, () -> 4) == 4, "an entry stamped in the future is recomputed, not trusted");
         check.accept(PopulationSupply.chooseCrop(level, first, points, now) == -1, "empty village caches absence of planted crop evidence");
         level.setBlock(origin.below(), Blocks.FARMLAND.defaultBlockState(), 2);
         level.setBlock(origin, Blocks.CARROTS.defaultBlockState(), 2);

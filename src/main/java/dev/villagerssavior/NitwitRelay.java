@@ -63,10 +63,12 @@ public final class NitwitRelay {
         } else {
             return; // no nitwit, or two of them: nothing to relay
         }
+        var state = SaviorState.get(level);
+        // The quota belongs to the nitwit, and only a share that really happened is counted.
+        if (state.dailyVillagerRemaining(EVENT, nitwit.getUUID(), now, DAILY_LIMIT) <= 0) return;
         UUID player = pick(nitwit.getGossips(), level.getRandom()).orElse(null);
         if (player == null) return;
-        int granted = SaviorState.get(level).dailyGrant(EVENT, player, receiver.getUUID(), now, 1, DAILY_LIMIT);
-        if (granted <= 0) return;
-        SaviorGossip.add(receiver, player, GossipType.MINOR_POSITIVE, granted);
+        SaviorGossip.add(receiver, player, GossipType.MINOR_POSITIVE, 1);
+        state.dailyVillagerGrant(EVENT, nitwit.getUUID(), now, 1, DAILY_LIMIT);
     }
 }

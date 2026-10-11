@@ -27,7 +27,14 @@ public abstract class VillagerReputationMixin {
     private void savior$nitwitHasNoStanding(Player player, CallbackInfoReturnable<Integer> info) {
         if (NitwitInventory.isNitwit((Villager) (Object) this)) info.setReturnValue(0);
     }
-    @Inject(method = "gossip", at = @At("TAIL"))
+    /**
+     * Injected immediately after vanilla's own gossip exchange, so the relay can only run when the exchange
+     * really happened: the vanilla 1200 tick chat cooldown and its "one of the two may gossip" rule have both
+     * already been satisfied, and an early return never reaches this point.
+     */
+    @Inject(method = "gossip", at = @At(value = "INVOKE",
+        target = "Lnet/minecraft/world/entity/ai/gossip/GossipContainer;transferFrom(Lnet/minecraft/world/entity/ai/gossip/GossipContainer;Lnet/minecraft/util/RandomSource;I)V",
+        shift = At.Shift.AFTER))
     private void savior$nitwitRelay(ServerLevel level, Villager partner, long time, CallbackInfo info) {
         NitwitRelay.onGossip(level, (Villager) (Object) this, partner, time);
     }

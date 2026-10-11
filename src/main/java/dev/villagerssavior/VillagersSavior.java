@@ -16,6 +16,7 @@ public final class VillagersSavior implements ModInitializer {
     @Override public void onInitialize() {
         ServerTickEvents.END_LEVEL_TICK.register(level -> {
             if (level.getGameTime() % 1200L == 0) SaviorState.get(level).prune(level.getGameTime());
+            if (FavorDecay.due(level.getGameTime())) FavorDecay.apply(level);
         });
         dev.villagerssavior.debug.ReputationCommands.register();
         PayloadTypeRegistry.serverboundPlay().register(FoodRequest.TYPE, FoodRequest.CODEC);

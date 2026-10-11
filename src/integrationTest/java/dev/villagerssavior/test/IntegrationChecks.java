@@ -2,6 +2,8 @@ package dev.villagerssavior.test;
 
 import dev.villagerssavior.*;
 import dev.villagerssavior.profession.ClericAid;
+import dev.villagerssavior.profession.ProfessionProduction;
+import dev.villagerssavior.profession.ServiceItems;
 import dev.villagerssavior.profession.ProfessionPickup;
 import dev.villagerssavior.test.mixin.RaidAccess;
 import com.mojang.authlib.GameProfile;
@@ -22,6 +24,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.ai.attributes.*;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.ai.gossip.GossipType;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
 import net.minecraft.world.entity.ai.gossip.*;
 import net.minecraft.world.entity.ai.village.poi.*;
@@ -279,6 +282,134 @@ public final class IntegrationChecks {
             cleric.getInventory().setItem(0, new ItemStack(Items.REDSTONE, 4));
             check(!ProfessionPickup.accepts(cleric, new ItemStack(Items.REDSTONE)), "the hard cap stops a stocked cleric");
             check(ProfessionPickup.accepts(cleric, new ItemStack(Items.GLOWSTONE_DUST)), "an unrelated cap does not block another reagent");
+            // Work production: a villager at its own job site gains materials every two minutes.
+            check(ProfessionProduction.WORK_PERIOD == 2400L && ProfessionProduction.WORK_RANGE == 4.0,
+                "work production is every two minutes within four blocks");
+            var worker = villager(level, 70, 4, 0);
+            worker.setVillagerData(worker.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.FLETCHER));
+            check(!ProfessionProduction.atJobSite(worker, level), "no job site memory means not working");
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE,
+                net.minecraft.core.GlobalPos.of(net.minecraft.world.level.Level.OVERWORLD, new BlockPos(72, 4, 0)));
+            check(ProfessionProduction.atJobSite(worker, level), "standing at the job site counts as working");
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE,
+                net.minecraft.core.GlobalPos.of(net.minecraft.world.level.Level.OVERWORLD, new BlockPos(78, 4, 0)));
+            check(!ProfessionProduction.atJobSite(worker, level), "a distant job site is not working");
+            worker.snapTo(70.5, 4.5, 0.5);
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE,
+                net.minecraft.core.GlobalPos.of(net.minecraft.world.level.Level.OVERWORLD, new BlockPos(74, 4, 0)));
+            check(ProfessionProduction.atJobSite(worker, level),
+                "exactly four blocks from the job site centre still counts as working");
+            worker.snapTo(70.4, 4.5, 0.5);
+            check(!ProfessionProduction.atJobSite(worker, level),
+                "just past four blocks from the centre is not working");
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE,
+                net.minecraft.core.GlobalPos.of(net.minecraft.world.level.Level.OVERWORLD, BlockPos.containing(worker.position())));
+            worker.getInventory().clearContent();
+            ProfessionProduction.work(worker, level);
+            check(ServiceItems.count(worker.getInventory(), Items.ARROW) > 0, "working at the job site produces materials");
+            int produced = ServiceItems.count(worker.getInventory(), Items.ARROW);
+            for (int round = 0; round < 6; round++) ProfessionProduction.work(worker, level);
+            check(produced > 0 && ServiceItems.count(worker.getInventory(), Items.ARROW) <= 4,
+                "work production respects the daily cap");
+            var idle = villager(level, 80, 4, 0);
+            idle.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE,
+                net.minecraft.core.GlobalPos.of(net.minecraft.world.level.Level.OVERWORLD, BlockPos.containing(idle.position())));
+            idle.getInventory().clearContent();
+            ProfessionProduction.work(idle, level);
+            check(idle.getInventory().isEmpty(), "an unemployed villager produces nothing");
+            // Vanilla decays every gossip entry once per day by that type's own decayPerDay. The mod keeps
+            // that for every type except MINOR_POSITIVE, which decays once every three in-game days, and trims
+            // a MINOR_POSITIVE entry that grew past 25 back to 25 every day.
+            check(FavorDecay.DAY == 24000L && FavorDecay.CEILING == 25 && FavorDecay.MINOR_PERIOD_DAYS == 3,
+                "the minor decay period is three in-game days and the ceiling is twenty five");
+            check(GossipType.MINOR_POSITIVE.decayPerDay == 1, "the minor decay amount comes from vanilla");
+            var keeper = villager(level, 90, 4, 0);
+            var favoured = UUID.randomUUID();
+            long firstDay = FavorDecay.DAY;
+            long thirdDay = 3 * FavorDecay.DAY;
+            SaviorGossip.add(keeper, favoured, GossipType.MINOR_POSITIVE, 40);
+            check(SaviorGossip.count(keeper, favoured, GossipType.MINOR_POSITIVE) == 40,
+                "MINOR_POSITIVE grows past the vanilla ceiling of 25");
+            keeper.getGossips().decay();
+            check(SaviorGossip.count(keeper, favoured, GossipType.MINOR_POSITIVE) == 40,
+                "vanilla's own decay no longer runs directly");
+            check(FavorDecay.daily(level, keeper, firstDay) == 1, "the daily pass trims a peak");
+            check(SaviorGossip.count(keeper, favoured, GossipType.MINOR_POSITIVE) == 25,
+                "a peak is trimmed back to exactly 25");
+            check(FavorDecay.daily(level, keeper, 2 * FavorDecay.DAY) == 0
+                && SaviorGossip.count(keeper, favoured, GossipType.MINOR_POSITIVE) == 25,
+                "a second day does not decay the minor entry");
+            check(FavorDecay.daily(level, keeper, thirdDay) == 1
+                && SaviorGossip.count(keeper, favoured, GossipType.MINOR_POSITIVE) == 24,
+                "the third day decays the minor entry by vanilla's own amount");
+            var slow = villager(level, 92, 4, 0);
+            var slowPlayer = UUID.randomUUID();
+            SaviorGossip.add(slow, slowPlayer, GossipType.MINOR_POSITIVE, 4);
+            for (int d = 1; d <= 9; d++) FavorDecay.daily(level, slow, FavorDecay.DAY * d);
+            check(SaviorGossip.count(slow, slowPlayer, GossipType.MINOR_POSITIVE) == 1,
+                "four minor points decay on days three, six and nine only");
+            // Every other type keeps vanilla's daily schedule, so the total may move by more than one point.
+            var major = villager(level, 94, 4, 0);
+            var majorPlayer = UUID.randomUUID();
+            SaviorGossip.add(major, majorPlayer, GossipType.MAJOR_POSITIVE, 3);
+            check(major.getGossips().getReputation(majorPlayer, type -> true) == 15, "the major total starts at fifteen");
+            int majorAmount = GossipType.MAJOR_POSITIVE.decayPerDay;
+            FavorDecay.daily(level, major, firstDay);
+            check(major.getGossips().getReputation(majorPlayer, type -> true) == 5 * Math.max(0, 3 - majorAmount),
+                "a major entry follows vanilla's own decay amount, so the total may move by more than one point");
+            var grudge = villager(level, 98, 4, 0);
+            var grudgePlayer = UUID.randomUUID();
+            SaviorGossip.add(grudge, grudgePlayer, GossipType.MINOR_NEGATIVE, 40);
+            int grudgeAmount = GossipType.MINOR_NEGATIVE.decayPerDay;
+            check(grudge.getGossips().getReputation(grudgePlayer, type -> true) == -40, "the grudge starts at minus forty");
+            FavorDecay.daily(level, grudge, firstDay);
+            check(grudge.getGossips().getReputation(grudgePlayer, type -> true) == -Math.max(0, 40 - grudgeAmount),
+                "a negative entry moves towards zero by vanilla's own amount");
+            FavorDecay.daily(level, grudge, 2 * FavorDecay.DAY);
+            check(grudge.getGossips().getReputation(grudgePlayer, type -> true) == -Math.max(0, 40 - 2 * grudgeAmount),
+                "and keeps following the vanilla schedule");
+            FavorDecay.daily(level, grudge, 4 * FavorDecay.DAY);
+            check(grudge.getGossips().getReputation(grudgePlayer, type -> true) == 0, "reaching zero stops further movement");
+            check(FavorDecay.daily(level, grudge, 8 * FavorDecay.DAY) == 0, "an empty opinion changes nothing");
+            // Nitwit relay through the real vanilla call. Vanilla only exchanges gossip when at least one of
+            // the two villagers has been quiet for 1200 ticks, and the mixin sits right after that exchange, so
+            // these tests drive Villager#gossip itself and must satisfy the vanilla condition to relay at all.
+            var chatty = villager(level, 110, 4, 0);
+            chatty.setVillagerData(chatty.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.NITWIT));
+            var ordinary = villager(level, 112, 4, 0);
+            ordinary.setVillagerData(ordinary.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.FARMER));
+            var liked = UUID.randomUUID();
+            SaviorGossip.add(chatty, liked, GossipType.MINOR_POSITIVE, 2);
+            var relayState = SaviorState.get(level);
+            long gossipTime = level.getGameTime() + 5000L;
+            ordinary.gossip(level, chatty, gossipTime);
+            check(relayState.dailyVillagerRemaining(NitwitRelay.EVENT, chatty.getUUID(), gossipTime, NitwitRelay.DAILY_LIMIT)
+                == NitwitRelay.DAILY_LIMIT - 1, "a completed vanilla exchange relays one good word");
+            check(ordinary.getGossips().getReputation(liked, type -> true) >= 1,
+                "the ordinary villager ends up liking the player the nitwit liked");
+            var probe = player(server, level);
+            check(chatty.getPlayerReputation(probe) == 0, "a nitwit still reads zero reputation for players");
+            ordinary.gossip(level, chatty, gossipTime + 100L);
+            check(relayState.dailyVillagerRemaining(NitwitRelay.EVENT, chatty.getUUID(), gossipTime, NitwitRelay.DAILY_LIMIT)
+                == NitwitRelay.DAILY_LIMIT - 1, "an exchange inside the vanilla cooldown relays nothing");
+            ordinary.gossip(level, chatty, gossipTime + 1200L);
+            ordinary.gossip(level, chatty, gossipTime + 2400L);
+            check(relayState.dailyVillagerRemaining(NitwitRelay.EVENT, chatty.getUUID(), gossipTime, NitwitRelay.DAILY_LIMIT) == 0,
+                "a nitwit relays at most three times per day");
+            ordinary.gossip(level, chatty, gossipTime + 3600L);
+            check(relayState.dailyVillagerRemaining(NitwitRelay.EVENT, chatty.getUUID(), gossipTime, NitwitRelay.DAILY_LIMIT) == 0,
+                "a fourth exchange in the same day relays nothing");
+            check(relayState.dailyVillagerRemaining(NitwitRelay.EVENT, chatty.getUUID(), gossipTime + 24000L, NitwitRelay.DAILY_LIMIT)
+                == NitwitRelay.DAILY_LIMIT, "the nitwit relay quota resets on the next in-game day");
+            var plainA = villager(level, 114, 4, 0);
+            plainA.setVillagerData(plainA.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.FARMER));
+            var plainB = villager(level, 116, 4, 0);
+            plainB.setVillagerData(plainB.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.FARMER));
+            var witness = UUID.randomUUID();
+            SaviorGossip.add(plainA, witness, GossipType.MINOR_POSITIVE, 2);
+            plainB.gossip(level, plainA, gossipTime);
+            check(relayState.dailyVillagerRemaining(NitwitRelay.EVENT, plainB.getUUID(), gossipTime, NitwitRelay.DAILY_LIMIT)
+                == NitwitRelay.DAILY_LIMIT, "two ordinary villagers relay nothing");
             check(FoodGifts.give(edge,freshPlayer,InteractionHand.MAIN_HAND).equals("emergency"),"other player can receive emergency independently");
             var state=SaviorState.get(level);
             var noFoodPlayer=player(server,level); noFoodPlayer.getFoodData().setFoodLevel(0); edge.getInventory().clearContent();
