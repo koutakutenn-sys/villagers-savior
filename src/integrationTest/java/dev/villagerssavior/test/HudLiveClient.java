@@ -123,7 +123,12 @@ public final class HudLiveClient {
                 entity = reply.entity();
                 var current = VillagerHud.current();
                 if (wait < 30 || current == null || current.reputation().entityId() != entity) return;
-                check(current.reputation().total() == 0 && HudInspectionChecks.has(current, "service_none"), "switching target replaces all reputation and service data");
+                // Split in two so a failure pinpoints the clause. The second villager is a nitwit, whose panel
+                // shows the inventory handover lines (pinned by the offline HUD suite) instead of service_none.
+                check(current.reputation().total() == 0, "switching target replaces the reputation");
+                check((HudInspectionChecks.has(current, "nitwit_items") || HudInspectionChecks.has(current, "nitwit_empty"))
+                    && !HudInspectionChecks.has(current, "conversion"),
+                    "switching target replaces the service data");
                 VillagerHud.accept(mc, old);
                 check(VillagerHud.current() == current, "late packet for old villager cannot replace current HUD");
                 Screenshot.grab(mc.gameDirectory, "hud-second-villager.png", mc.gameRenderer.mainRenderTarget(), 1, message -> {});
