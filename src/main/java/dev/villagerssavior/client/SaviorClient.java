@@ -16,10 +16,14 @@ import org.lwjgl.glfw.GLFW;
 
 public final class SaviorClient implements ClientModInitializer {
     public static KeyMapping requestFood;
+    public static KeyMapping requestService;
     @Override public void onInitializeClient() {
         var category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("villagers_savior", "requests"));
         requestFood = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.villagers_savior.request_food",
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, category));
+        // A separate, rebindable key asks for the profession service itself instead of the food gift.
+        requestService = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.villagers_savior.request_service",
+            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
         ClientPlayNetworking.registerGlobalReceiver(VillagerDetails.TYPE,
             (report, context) -> context.client().execute(() -> VillagerHud.accept(context.client(), report)));
         ClientTickEvents.END_CLIENT_TICK.register(VillagerHud::tick);
@@ -28,4 +32,8 @@ public final class SaviorClient implements ClientModInitializer {
             Identifier.fromNamespaceAndPath("villagers_savior", "villager_details"), VillagerHud::render);
     }
     public static boolean requesting() { return requestFood != null && requestFood.isDown() && ClientPlayNetworking.canSend(FoodRequest.TYPE); }
+    /** The dedicated service key: it never feeds the player, it only asks the profession to serve. */
+    public static boolean requestingService() {
+        return requestService != null && requestService.isDown() && ClientPlayNetworking.canSend(FoodRequest.TYPE);
+    }
 }

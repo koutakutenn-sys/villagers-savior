@@ -61,7 +61,8 @@ public final class VillagerHud {
         lines.add(VillagerInspection.title(villager, report.profession(), report.level()));
         lines.add(text("reputation", report.total(), Component.translatable(LibrarianInteraction.standing(report.total()))));
         lines.addAll(details.offers());
-        lines.add(text("request_hint", SaviorClient.requestFood.getTranslatedKeyMessage()));
+        lines.add(text("request_hint", SaviorClient.requestFood.getTranslatedKeyMessage(),
+            SaviorClient.requestService.getTranslatedKeyMessage()));
         return lines;
     }
     public static void render(GuiGraphicsExtractor graphics, DeltaTracker delta) {

@@ -61,6 +61,10 @@ public final class HudLiveClient {
             if (stage == -2) {
                 if (mc.gui.overlay() != null || ticks < 40) return;
                 check(Arrays.stream(mc.options.keyMappings).noneMatch(key -> key.getName().equals("key.villagers_savior.debug_reputation")), "G debug binding removed");
+                check(SaviorClient.requestService != null && net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper
+                    .getBoundKeyOf(SaviorClient.requestService).getValue() == 66, "dedicated service key defaults to B");
+                check(Arrays.stream(mc.options.keyMappings).anyMatch(key -> key == SaviorClient.requestService),
+                    "dedicated service key is exposed in the controls screen");
                 int port = Integer.getInteger("savior.audit.port", 29957);
                 ConnectScreen.startConnecting(new TitleScreen(), mc, new ServerAddress("127.0.0.1", port),
                     new ServerData("HUD audit", "127.0.0.1:" + port, ServerData.Type.OTHER), false, null);

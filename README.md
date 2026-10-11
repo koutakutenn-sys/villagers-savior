@@ -32,8 +32,8 @@ The artifact is `build/libs/villagers-savior-1.0.3+mc26.2.jar` — copy it into 
 
 Hold **V** and right-click a villager to make a request. With an **empty hand** it runs the ordinary food gift
 and falls back to the profession service; **holding an item** it tries that profession's held-item service first
-(weaponsmiths, toolsmiths and the other artisans repair the item in your hand); **sneaking** forces the profession
-service and never feeds you. You can rebind the request key in
+(weaponsmiths, toolsmiths and the other artisans repair the item in your hand); the separate **service key**
+(default B) forces the profession service and never feeds you. Both keys can be rebound in
 Options → Controls → Key Binds; once you release the key, right-clicking behaves like vanilla again.
 
 Look at a villager within normal interaction range to automatically show their reputation, food offers
